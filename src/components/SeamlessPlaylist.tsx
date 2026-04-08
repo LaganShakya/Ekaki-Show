@@ -462,8 +462,13 @@ function DoubleTapOverlay({ playerRef }: { playerRef: React.RefObject<any> }) {
       lastTapRef.current = { time: 0, side };
     } else {
       lastTapRef.current = { time: now, side };
-      // Let single taps pass through after a short delay
+      // Handle single tap after delay if no second tap happens
       tapTimeoutRef.current = setTimeout(() => {
+        const player = playerRef.current;
+        if (player) {
+          if (player.paused) player.play();
+          else player.pause();
+        }
         lastTapRef.current = { time: 0, side: "left" };
       }, 350);
     }
