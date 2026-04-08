@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import Link from "next/link";
-import { Play, Layers } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Play, Layers, MoreVertical, ListMusic, PlayCircle } from "lucide-react";
 
 type VideoAsset = {
   id: string;
@@ -101,51 +102,13 @@ export default function Home() {
             Playlists
           </h2>
           <div className="video-grid">
-            {playlists.map((playlist) => {
-              // Find a thumbnail from the first ready video in this playlist
-              const firstAssetId = playlist.videos[0]?.muxAssetId;
-              const matchingAsset = videos.find(v => v.id === firstAssetId);
-              const playbackIds = playlist.videos.map((v) => {
-                const asset = videos.find(a => a.id === v.muxAssetId);
-                return asset?.playback_ids?.[0]?.id;
-              }).filter(Boolean) as string[];
-              
-              const thumbPlaybackId = playbackIds[0];
-
-              // Calculate total playlist duration
-              const totalDuration = playlist.videos.reduce((sum, v) => {
-                const asset = videos.find(a => a.id === v.muxAssetId);
-                return sum + (asset?.duration || 0);
-              }, 0);
-
-              return (
-                <Link key={playlist.id} href={`/playlist/${playlist.id}`}>
-                  <div className="video-card glass-panel" style={{ border: "1px solid var(--accent-glow)" }}>
-                    <div style={{ position: "relative" }}>
-                      {thumbPlaybackId ? (
-                        <HoverProgressThumbnail playbackIds={playbackIds} title={playlist.title} totalDuration={totalDuration} />
-                      ) : (
-                        <div className="video-thumbnail" style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(139, 92, 246, 0.1)" }}>
-                          <Layers size={40} color="var(--accent)" />
-                        </div>
-                      )}
-                      <div className="status-badge" style={{ background: "rgba(139, 92, 246, 0.8)", border: "none" }}>
-                        <span style={{ color: "white" }}>{playlist.videos.length} PARTS</span>
-                      </div>
-                      {totalDuration > 0 && (
-                        <div className="duration-badge">{formatDuration(totalDuration)}</div>
-                      )}
-                    </div>
-                    <div className="video-info">
-                      <div className="video-title" style={{ fontSize: "18px", fontWeight: 600 }}>{playlist.title}</div>
-                      <div className="video-meta">
-                        Created {new Date(playlist.createdAt).toLocaleDateString()}
-                      </div>
-                    </div>
-                  </div>
-                </Link>
-              );
-            })}
+            {playlists.map((playlist) => (
+              <PlaylistCard 
+                key={playlist.id} 
+                playlist={playlist} 
+                videos={videos} 
+              />
+            ))}
           </div>
         </div>
       )}
@@ -161,8 +124,23 @@ export default function Home() {
             {standaloneVideos.map((asset) => {
               const playbackId = asset.playback_ids?.[0]?.id;
 
+              // Check if user has watch progress
+              const progressKey = `ekaki-progress:${playbackId}`;
+              let hasProgress = false;
+              try {
+                const raw = typeof window !== "undefined" ? localStorage.getItem(progressKey) : null;
+                if (raw) {
+                  const data = JSON.parse(raw);
+                  if (Date.now() - data.updatedAt < 30 * 24 * 60 * 60 * 1000) {
+                    hasProgress = true;
+                  }
+                }
+              } catch {}
+
+              const href = asset.status === "ready" && playbackId ? `/player/${playbackId}` : "#";
+
               return (
-                <Link key={asset.id} href={asset.status === "ready" && playbackId ? `/player/${playbackId}` : "#"}>
+                <Link key={asset.id} href={href}>
                   <div className="video-card glass-panel" style={{ opacity: asset.status === "ready" ? 1 : 0.7 }}>
                     <div style={{ position: "relative" }}>
                       {playbackId ? (
@@ -185,7 +163,7 @@ export default function Home() {
                     <div className="video-info">
                       <div className="video-title">Video — {new Date(Number(asset.created_at) * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</div>
                       <div className="video-meta">
-                        {asset.status === "ready" ? "Ready to play" : asset.status}
+                        {hasProgress ? "Continue watching" : (asset.status === "ready" ? "Ready to play" : asset.status)}
                       </div>
                     </div>
                   </div>
@@ -215,12 +193,9 @@ export default function Home() {
 function HoverProgressThumbnail({ playbackIds, title, totalDuration }: { playbackIds: string[], title: string, totalDuration?: number }) {
   const [isHovered, setIsHovered] = useState(false);
   const [progressPercent, setProgressPercent] = useState<number | null>(null);
+  const [savedProgress, setSavedProgress] = useState<{ partIndex: number; currentTime: number } | null>(null);
 
   const thumbPlaybackId = playbackIds[0];
-  
-  // Mux URLs
-  const staticThumb = `https://image.mux.com/${thumbPlaybackId}/thumbnail.jpg?time=1&width=600`;
-  const animatedThumb = `https://image.mux.com/${thumbPlaybackId}/animated.webp?width=600`;
 
   useEffect(() => {
     try {
@@ -229,20 +204,31 @@ function HoverProgressThumbnail({ playbackIds, title, totalDuration }: { playbac
       if (raw) {
         const data = JSON.parse(raw);
         if (Date.now() - data.updatedAt < 30 * 24 * 60 * 60 * 1000) {
+          setSavedProgress({ partIndex: data.partIndex || 0, currentTime: data.currentTime || 0 });
           if (totalDuration && totalDuration > 0) {
-            // Real percentage: for multi-part we approximate using partIndex
             const partDuration = totalDuration / playbackIds.length;
             const watchedTime = (data.partIndex || 0) * partDuration + data.currentTime;
             const pct = Math.min(95, Math.max(3, (watchedTime / totalDuration) * 100));
             setProgressPercent(pct);
           } else if (data.currentTime > 10) {
-            // Fallback: we know they watched at least some
             setProgressPercent(30);
           }
         }
       }
     } catch {}
   }, [playbackIds, totalDuration]);
+
+  // Pick the right playbackId and time for the hover preview
+  const previewPartId = savedProgress 
+    ? (playbackIds[savedProgress.partIndex] || thumbPlaybackId)
+    : thumbPlaybackId;
+  const previewStartTime = savedProgress ? Math.max(0, Math.floor(savedProgress.currentTime)) : 1;
+  
+  // Mux URLs
+  const staticThumb = savedProgress
+    ? `https://image.mux.com/${previewPartId}/thumbnail.jpg?time=${previewStartTime}&width=600`
+    : `https://image.mux.com/${thumbPlaybackId}/thumbnail.jpg?time=1&width=600`;
+  const animatedThumb = `https://image.mux.com/${previewPartId}/animated.webp?start=${previewStartTime}&width=600`;
 
   return (
     <div 
@@ -256,12 +242,147 @@ function HoverProgressThumbnail({ playbackIds, title, totalDuration }: { playbac
         className="video-thumbnail" 
       />
       
+      {/* "Continue watching" overlay when hovered on a partially watched video */}
+      {savedProgress && isHovered && (
+        <div className="thumbnail-continue-badge">
+          <Play size={12} fill="white" />
+          Continue · {formatDuration(savedProgress.currentTime)}
+        </div>
+      )}
+
       {/* Progress Bar (YouTube style) */}
       {progressPercent !== null && (
         <div className="thumbnail-progress-track">
           <div className="thumbnail-progress-fill" style={{ width: `${progressPercent}%` }} />
         </div>
       )}
+    </div>
+  );
+}
+
+function PlaylistCard({ playlist, videos }: { playlist: Playlist, videos: VideoAsset[] }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+
+  // Find a thumbnail from the first ready video in this playlist
+  const firstAssetId = playlist.videos[0]?.muxAssetId;
+  const matchingAsset = videos.find(v => v.id === firstAssetId);
+  const playbackIds = playlist.videos.map((v) => {
+    const asset = videos.find(a => a.id === v.muxAssetId);
+    return asset?.playback_ids?.[0]?.id;
+  }).filter(Boolean) as string[];
+  
+  const thumbPlaybackId = playbackIds[0];
+
+  // Calculate total playlist duration
+  const totalDuration = playlist.videos.reduce((sum, v) => {
+    const asset = videos.find(a => a.id === v.muxAssetId);
+    return sum + (asset?.duration || 0);
+  }, 0);
+
+  // Check if user has watch progress
+  const progressKey = `ekaki-progress:${playbackIds.join(",")}`;
+  let hasProgress = false;
+  try {
+    const raw = typeof window !== "undefined" ? localStorage.getItem(progressKey) : null;
+    if (raw) {
+      const data = JSON.parse(raw);
+      if (Date.now() - data.updatedAt < 30 * 24 * 60 * 60 * 1000) {
+        hasProgress = true;
+      }
+    }
+  } catch {}
+
+  const mainHref = hasProgress && playbackIds.length > 0
+    ? `/player/${playbackIds.join(",")}`
+    : `/playlist/${playlist.id}`;
+
+  const toggleMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setMenuOpen(!menuOpen);
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    if (menuOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [menuOpen]);
+
+  const goToParts = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    router.push(`/playlist/${playlist.id}`);
+  };
+
+  const playFromStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Logic to clear progress for this specific playlist
+    localStorage.removeItem(progressKey);
+    router.push(`/player/${playbackIds.join(",")}`);
+  };
+
+  return (
+    <div className="video-card-container" style={{ position: "relative" }}>
+      <Link href={mainHref}>
+        <div className="video-card glass-panel" style={{ border: "1px solid var(--accent-glow)" }}>
+          <div style={{ position: "relative" }}>
+            {thumbPlaybackId ? (
+              <HoverProgressThumbnail playbackIds={playbackIds} title={playlist.title} totalDuration={totalDuration} />
+            ) : (
+              <div className="video-thumbnail" style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(139, 92, 246, 0.1)" }}>
+                <Layers size={40} color="var(--accent)" />
+              </div>
+            )}
+            <div className="status-badge" style={{ background: "rgba(139, 92, 246, 0.8)", border: "none" }}>
+              <span style={{ color: "white" }}>{playlist.videos.length} PARTS</span>
+            </div>
+            {totalDuration > 0 && (
+              <div className="duration-badge">{formatDuration(totalDuration)}</div>
+            )}
+          </div>
+          <div className="video-info">
+            <div className="video-title" style={{ fontSize: "18px", fontWeight: 600 }}>{playlist.title}</div>
+            <div className="video-meta">
+              {hasProgress ? "Continue watching" : `Created ${new Date(playlist.createdAt).toLocaleDateString()}`}
+            </div>
+          </div>
+        </div>
+      </Link>
+
+      {/* Options Menu Button */}
+      <div ref={menuRef} className="card-options-wrapper">
+        <button 
+          className={`card-options-btn ${menuOpen ? "active" : ""}`} 
+          onClick={toggleMenu}
+          aria-label="Options"
+        >
+          <MoreVertical size={20} />
+        </button>
+
+        {menuOpen && (
+          <div className="card-options-dropdown glass-panel">
+            <button className="card-option-item" onClick={goToParts}>
+              <ListMusic size={16} />
+              <span>See parts / Manage</span>
+            </button>
+            {hasProgress && (
+              <button className="card-option-item" onClick={playFromStart}>
+                <PlayCircle size={16} />
+                <span>Start from beginning</span>
+              </button>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
