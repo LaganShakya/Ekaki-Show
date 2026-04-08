@@ -48,7 +48,31 @@ export default function SeamlessPlaylist({ ids, onPartChange }: { ids: string[];
   const [showResumeBanner, setShowResumeBanner] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const playerRef = useRef<any>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const saveIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const animationRef = useRef<number | null>(null);
+
+  // Ambilight render loop
+  useEffect(() => {
+    const renderAmbilight = () => {
+      const videoEl = playerRef.current?.media?.nativeEl;
+      const canvas = canvasRef.current;
+      if (videoEl && canvas) {
+        const ctx = canvas.getContext('2d');
+        if (ctx && videoEl.readyState >= 2 && !videoEl.paused) {
+          // Drawing at low res saves crazy processing power but gives same blurred glow
+          ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+        }
+      }
+      animationRef.current = requestAnimationFrame(renderAmbilight);
+    };
+
+    animationRef.current = requestAnimationFrame(renderAmbilight);
+    
+    return () => {
+      if (animationRef.current) cancelAnimationFrame(animationRef.current);
+    };
+  }, []);
 
   // Load saved progress on mount
   useEffect(() => {
@@ -216,7 +240,17 @@ export default function SeamlessPlaylist({ ids, onPartChange }: { ids: string[];
 
   if (ids.length === 1) {
     return (
-      <div style={{ position: "relative" }}>
+      <div style={{ position: "relative", width: "100%", aspectRatio: "16/9", background: "#000", borderRadius: "12px", overflow: "visible" }}>
+        {/* Ambilight Canvas */}
+        <canvas 
+          ref={canvasRef}
+          width={64} height={36}
+          style={{
+            position: "absolute", inset: 0, width: "100%", height: "100%",
+            filter: "blur(60px) saturate(200%) opacity(0.6)",
+            transform: "scale(1.1) translateY(10%)", zIndex: -1, pointerEvents: "none"
+          }}
+        />
         <MuxPlayer
           ref={playerRef}
           playbackId={ids[0]}
@@ -257,7 +291,18 @@ export default function SeamlessPlaylist({ ids, onPartChange }: { ids: string[];
   };
 
   return (
-    <div style={{ position: "relative", width: "100%", aspectRatio: "16/9", background: "#000", borderRadius: "12px", overflow: "hidden" }}>
+    <div style={{ position: "relative", width: "100%", aspectRatio: "16/9", background: "#000", borderRadius: "12px", overflow: "visible" }}>
+      {/* Ambilight Canvas */}
+      <canvas 
+        ref={canvasRef}
+        width={64} height={36}
+        style={{
+          position: "absolute", inset: 0, width: "100%", height: "100%",
+          filter: "blur(60px) saturate(200%) opacity(0.6)",
+          transform: "scale(1.1) translateY(10%)", zIndex: -1, pointerEvents: "none"
+        }}
+      />
+      
       {/* PING PLAYER */}
       {pingId && (
         <MuxPlayer

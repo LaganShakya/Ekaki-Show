@@ -105,10 +105,12 @@ export default function Home() {
               // Find a thumbnail from the first ready video in this playlist
               const firstAssetId = playlist.videos[0]?.muxAssetId;
               const matchingAsset = videos.find(v => v.id === firstAssetId);
-              const thumbPlaybackId = matchingAsset?.playback_ids?.[0]?.id;
-              const thumbnailUrl = thumbPlaybackId
-                ? `https://image.mux.com/${thumbPlaybackId}/thumbnail.jpg?time=1&width=600`
-                : "";
+              const playbackIds = playlist.videos.map((v) => {
+                const asset = videos.find(a => a.id === v.muxAssetId);
+                return asset?.playback_ids?.[0]?.id;
+              }).filter(Boolean) as string[];
+              
+              const thumbPlaybackId = playbackIds[0];
 
               // Calculate total playlist duration
               const totalDuration = playlist.videos.reduce((sum, v) => {
@@ -120,8 +122,8 @@ export default function Home() {
                 <Link key={playlist.id} href={`/playlist/${playlist.id}`}>
                   <div className="video-card glass-panel" style={{ border: "1px solid var(--accent-glow)" }}>
                     <div style={{ position: "relative" }}>
-                      {thumbnailUrl ? (
-                        <img src={thumbnailUrl} alt={playlist.title} className="video-thumbnail" />
+                      {thumbPlaybackId ? (
+                        <HoverProgressThumbnail playbackIds={playbackIds} title={playlist.title} totalDuration={totalDuration} />
                       ) : (
                         <div className="video-thumbnail" style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(139, 92, 246, 0.1)" }}>
                           <Layers size={40} color="var(--accent)" />
@@ -158,16 +160,13 @@ export default function Home() {
           <div className="video-grid">
             {standaloneVideos.map((asset) => {
               const playbackId = asset.playback_ids?.[0]?.id;
-              const posterUrl = playbackId 
-                ? `https://image.mux.com/${playbackId}/thumbnail.jpg?time=1&width=600` 
-                : "";
 
               return (
                 <Link key={asset.id} href={asset.status === "ready" && playbackId ? `/player/${playbackId}` : "#"}>
                   <div className="video-card glass-panel" style={{ opacity: asset.status === "ready" ? 1 : 0.7 }}>
                     <div style={{ position: "relative" }}>
-                      {posterUrl ? (
-                        <img src={posterUrl} alt="Video Thumbnail" className="video-thumbnail" />
+                      {playbackId ? (
+                        <HoverProgressThumbnail playbackIds={[playbackId]} title={"Video Thumbnail"} totalDuration={asset.duration} />
                       ) : (
                         <div className="video-thumbnail" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
                           <Play size={32} color="var(--border)" />
@@ -210,5 +209,59 @@ export default function Home() {
         </div>
       )}
     </>
+  );
+}
+
+function HoverProgressThumbnail({ playbackIds, title, totalDuration }: { playbackIds: string[], title: string, totalDuration?: number }) {
+  const [isHovered, setIsHovered] = useState(false);
+  const [progressPercent, setProgressPercent] = useState<number | null>(null);
+
+  const thumbPlaybackId = playbackIds[0];
+  
+  // Mux URLs
+  const staticThumb = `https://image.mux.com/${thumbPlaybackId}/thumbnail.jpg?time=1&width=600`;
+  const animatedThumb = `https://image.mux.com/${thumbPlaybackId}/animated.webp?width=600`;
+
+  useEffect(() => {
+    try {
+      const key = `ekaki-progress:${playbackIds.join(",")}`;
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        const data = JSON.parse(raw);
+        if (Date.now() - data.updatedAt < 30 * 24 * 60 * 60 * 1000) {
+          if (totalDuration && totalDuration > 0) {
+            // Real percentage: for multi-part we approximate using partIndex
+            const partDuration = totalDuration / playbackIds.length;
+            const watchedTime = (data.partIndex || 0) * partDuration + data.currentTime;
+            const pct = Math.min(95, Math.max(3, (watchedTime / totalDuration) * 100));
+            setProgressPercent(pct);
+          } else if (data.currentTime > 10) {
+            // Fallback: we know they watched at least some
+            setProgressPercent(30);
+          }
+        }
+      }
+    } catch {}
+  }, [playbackIds, totalDuration]);
+
+  return (
+    <div 
+      className="hover-thumbnail-wrapper"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      <img 
+        src={isHovered ? animatedThumb : staticThumb} 
+        alt={title} 
+        className="video-thumbnail" 
+      />
+      
+      {/* Progress Bar (YouTube style) */}
+      {progressPercent !== null && (
+        <div className="thumbnail-progress-track">
+          <div className="thumbnail-progress-fill" style={{ width: `${progressPercent}%` }} />
+        </div>
+      )}
+    </div>
   );
 }

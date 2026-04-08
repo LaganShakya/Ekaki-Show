@@ -202,6 +202,30 @@ main {
   width: 100%;
   border-radius: var(--rounded-md);
   object-fit: cover;
+  display: block;
+}
+
+.hover-thumbnail-wrapper {
+  position: relative;
+  width: 100%;
+  border-radius: var(--rounded-md);
+  overflow: hidden;
+}
+
+.thumbnail-progress-track {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.2);
+  z-index: 5;
+}
+
+.thumbnail-progress-fill {
+  height: 100%;
+  background: var(--error); /* Using error color as it's typically red like youtube */
+  transition: width 0.3s ease;
 }
 
 .video-info {
@@ -590,10 +614,11 @@ input[type="file"] {
   border-color: rgba(255, 255, 255, 0.2);
 }
 
-/* Video wrapper with subtle shadow */
+/* Video wrapper — overflow visible to allow ambilight glow to bleed out */
 .player-video-wrapper {
   border-radius: 16px;
-  overflow: hidden;
+  overflow: visible;
+  position: relative;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05);
   animation: playerVideoReveal 0.6s ease-out 0.1s both;
 }

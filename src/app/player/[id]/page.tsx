@@ -70,8 +70,6 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
 
   return (
     <div className="player-page">
-      {/* Ambient glow behind video */}
-      <div className="player-ambient-glow" />
 
       <div className="player-top-bar">
         <Link href="/" className="player-back-btn">
