@@ -41,7 +41,7 @@ function clearProgress(ids: string[]) {
   } catch {}
 }
 
-export default function SeamlessPlaylist({ ids }: { ids: string[] }) {
+export default function SeamlessPlaylist({ ids, onPartChange }: { ids: string[]; onPartChange?: (index: number) => void }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [resumeTime, setResumeTime] = useState<number | null>(null);
   const [hasResumed, setHasResumed] = useState(false);
@@ -56,8 +56,14 @@ export default function SeamlessPlaylist({ ids }: { ids: string[] }) {
       setActiveIndex(saved.partIndex);
       setResumeTime(saved.currentTime);
       setShowResumeBanner(true);
+      onPartChange?.(saved.partIndex);
     }
   }, []);
+
+  // Notify parent of part changes
+  useEffect(() => {
+    onPartChange?.(activeIndex);
+  }, [activeIndex]);
 
   // Save progress periodically
   const saveCurrentProgress = useCallback(() => {
@@ -84,6 +90,33 @@ export default function SeamlessPlaylist({ ids }: { ids: string[] }) {
       saveCurrentProgress();
     };
   }, [saveCurrentProgress]);
+
+  // Auto-rotate to landscape on fullscreen (mobile)
+  useEffect(() => {
+    const handleFullscreenChange = async () => {
+      const screen = window.screen as any;
+      const orientation = screen?.orientation;
+      if (!orientation?.lock) return;
+
+      try {
+        if (document.fullscreenElement) {
+          await orientation.lock("landscape");
+        } else {
+          orientation.unlock();
+        }
+      } catch {
+        // Orientation lock not supported or failed silently
+      }
+    };
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
+    };
+  }, []);
 
   // Handle seeking to resume time once player is ready
   const handleLoadedData = useCallback(() => {
