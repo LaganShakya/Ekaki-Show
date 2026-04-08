@@ -92,26 +92,40 @@ export default function Home() {
             Playlists
           </h2>
           <div className="video-grid">
-            {playlists.map((playlist) => (
-              <Link key={playlist.id} href={`/playlist/${playlist.id}`}>
-                <div className="video-card glass-panel" style={{ border: "1px solid var(--accent-glow)" }}>
-                  <div style={{ position: "relative" }}>
-                    <div className="video-thumbnail" style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(139, 92, 246, 0.1)" }}>
-                      <Layers size={40} color="var(--accent)" />
+            {playlists.map((playlist) => {
+              // Find a thumbnail from the first ready video in this playlist
+              const firstAssetId = playlist.videos[0]?.muxAssetId;
+              const matchingAsset = videos.find(v => v.id === firstAssetId);
+              const thumbPlaybackId = matchingAsset?.playback_ids?.[0]?.id;
+              const thumbnailUrl = thumbPlaybackId
+                ? `https://image.mux.com/${thumbPlaybackId}/thumbnail.jpg?time=1&width=600`
+                : "";
+
+              return (
+                <Link key={playlist.id} href={`/playlist/${playlist.id}`}>
+                  <div className="video-card glass-panel" style={{ border: "1px solid var(--accent-glow)" }}>
+                    <div style={{ position: "relative" }}>
+                      {thumbnailUrl ? (
+                        <img src={thumbnailUrl} alt={playlist.title} className="video-thumbnail" />
+                      ) : (
+                        <div className="video-thumbnail" style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(139, 92, 246, 0.1)" }}>
+                          <Layers size={40} color="var(--accent)" />
+                        </div>
+                      )}
+                      <div className="status-badge" style={{ background: "rgba(139, 92, 246, 0.8)", border: "none" }}>
+                        <span style={{ color: "white" }}>{playlist.videos.length} PARTS</span>
+                      </div>
                     </div>
-                    <div className="status-badge" style={{ background: "rgba(139, 92, 246, 0.8)", border: "none" }}>
-                      <span style={{ color: "white" }}>{playlist.videos.length} PARTS</span>
+                    <div className="video-info">
+                      <div className="video-title" style={{ fontSize: "18px", fontWeight: 600 }}>{playlist.title}</div>
+                      <div className="video-meta">
+                        Created {new Date(playlist.createdAt).toLocaleDateString()}
+                      </div>
                     </div>
                   </div>
-                  <div className="video-info">
-                    <div className="video-title" style={{ fontSize: "18px", fontWeight: 600 }}>{playlist.title}</div>
-                    <div className="video-meta">
-                      Created {new Date(playlist.createdAt).toLocaleDateString()}
-                    </div>
-                  </div>
-                </div>
-              </Link>
-            ))}
+                </Link>
+              );
+            })}
           </div>
         </div>
       )}
