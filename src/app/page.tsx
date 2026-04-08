@@ -8,8 +8,17 @@ type VideoAsset = {
   id: string;
   status: "preparing" | "ready" | "errored";
   created_at: string;
+  duration?: number;
   playback_ids?: { id: string; policy: string }[];
 };
+
+function formatDuration(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  if (h > 0) return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
 
 type Playlist = {
   id: string;
@@ -101,6 +110,12 @@ export default function Home() {
                 ? `https://image.mux.com/${thumbPlaybackId}/thumbnail.jpg?time=1&width=600`
                 : "";
 
+              // Calculate total playlist duration
+              const totalDuration = playlist.videos.reduce((sum, v) => {
+                const asset = videos.find(a => a.id === v.muxAssetId);
+                return sum + (asset?.duration || 0);
+              }, 0);
+
               return (
                 <Link key={playlist.id} href={`/playlist/${playlist.id}`}>
                   <div className="video-card glass-panel" style={{ border: "1px solid var(--accent-glow)" }}>
@@ -115,6 +130,9 @@ export default function Home() {
                       <div className="status-badge" style={{ background: "rgba(139, 92, 246, 0.8)", border: "none" }}>
                         <span style={{ color: "white" }}>{playlist.videos.length} PARTS</span>
                       </div>
+                      {totalDuration > 0 && (
+                        <div className="duration-badge">{formatDuration(totalDuration)}</div>
+                      )}
                     </div>
                     <div className="video-info">
                       <div className="video-title" style={{ fontSize: "18px", fontWeight: 600 }}>{playlist.title}</div>
@@ -160,6 +178,9 @@ export default function Home() {
                         <div className={`status-dot ${asset.status}`}></div>
                         <span className={`status-text ${asset.status}`}>{asset.status}</span>
                       </div>
+                      {asset.duration && asset.status === "ready" && (
+                        <div className="duration-badge">{formatDuration(asset.duration)}</div>
+                      )}
                     </div>
                     
                     <div className="video-info">

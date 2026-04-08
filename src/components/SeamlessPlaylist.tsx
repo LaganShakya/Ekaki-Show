@@ -46,6 +46,7 @@ export default function SeamlessPlaylist({ ids, onPartChange }: { ids: string[];
   const [resumeTime, setResumeTime] = useState<number | null>(null);
   const [hasResumed, setHasResumed] = useState(false);
   const [showResumeBanner, setShowResumeBanner] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
   const playerRef = useRef<any>(null);
   const saveIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -118,6 +119,70 @@ export default function SeamlessPlaylist({ ids, onPartChange }: { ids: string[];
     };
   }, []);
 
+  // Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeTag = document.activeElement?.tagName.toLowerCase();
+      // Don't trigger shortcuts if user is typing in an input or textarea
+      if (activeTag === 'input' || activeTag === 'textarea') return;
+
+      const player = playerRef.current;
+      if (!player) return;
+
+      switch (e.key.toLowerCase()) {
+        case " ":
+        case "k":
+          e.preventDefault();
+          if (player.paused) player.play();
+          else player.pause();
+          break;
+        case "arrowleft":
+        case "j":
+          e.preventDefault();
+          if (typeof player.currentTime === "number") {
+             player.currentTime = Math.max(0, player.currentTime - 10);
+          }
+          break;
+        case "arrowright":
+        case "l":
+          e.preventDefault();
+          if (typeof player.currentTime === "number") {
+             player.currentTime = Math.min(player.duration || Infinity, player.currentTime + 10);
+          }
+          break;
+        case "f":
+          e.preventDefault();
+          if (!document.fullscreenElement) {
+             const container = document.querySelector(".playlist-container > .glass-panel");
+             if (container) {
+               container.requestFullscreen?.().catch(() => {
+                 playerRef.current?.requestFullscreen?.();
+               });
+             } else {
+               playerRef.current?.requestFullscreen?.();
+             }
+          } else {
+             document.exitFullscreen?.();
+          }
+          break;
+        case "m":
+          e.preventDefault();
+          player.muted = !player.muted;
+          break;
+        case "?":
+          e.preventDefault();
+          setShowShortcuts(prev => !prev);
+          break;
+        case "escape":
+          setShowShortcuts(false);
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   // Handle seeking to resume time once player is ready
   const handleLoadedData = useCallback(() => {
     if (resumeTime !== null && !hasResumed) {
@@ -163,6 +228,7 @@ export default function SeamlessPlaylist({ ids, onPartChange }: { ids: string[];
           style={{ width: "100%", aspectRatio: "16/9", display: "block" }}
         />
         <DoubleTapOverlay playerRef={playerRef} />
+        <KeyboardShortcutHelp show={showShortcuts} onClose={() => setShowShortcuts(false)} />
         {showResumeBanner && (
           <ResumeBanner 
             time={resumeTime!} 
@@ -257,6 +323,7 @@ export default function SeamlessPlaylist({ ids, onPartChange }: { ids: string[];
       </div>
 
       <DoubleTapOverlay playerRef={playerRef} />
+      <KeyboardShortcutHelp show={showShortcuts} onClose={() => setShowShortcuts(false)} />
 
       {/* Resume banner */}
       {showResumeBanner && (
@@ -387,6 +454,46 @@ function DoubleTapOverlay({ playerRef }: { playerRef: React.RefObject<any> }) {
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function KeyboardShortcutHelp({ show, onClose }: { show: boolean, onClose: () => void }) {
+  if (!show) return null;
+  return (
+    <div className="shortcuts-overlay" onClick={onClose}>
+      <div className="shortcuts-modal" onClick={e => e.stopPropagation()}>
+        <div className="shortcuts-header">
+          <h3>Keyboard Shortcuts</h3>
+          <button onClick={onClose} aria-label="Close">✕</button>
+        </div>
+        <div className="shortcuts-grid">
+          <div className="shortcut-item">
+            <span className="shortcut-keys"><kbd>Space</kbd> or <kbd>K</kbd></span>
+            <span className="shortcut-desc">Play / Pause</span>
+          </div>
+          <div className="shortcut-item">
+            <span className="shortcut-keys"><kbd>←</kbd> or <kbd>J</kbd></span>
+            <span className="shortcut-desc">Skip backward 10s</span>
+          </div>
+          <div className="shortcut-item">
+            <span className="shortcut-keys"><kbd>→</kbd> or <kbd>L</kbd></span>
+            <span className="shortcut-desc">Skip forward 10s</span>
+          </div>
+          <div className="shortcut-item">
+            <span className="shortcut-keys"><kbd>F</kbd></span>
+            <span className="shortcut-desc">Toggle Fullscreen</span>
+          </div>
+          <div className="shortcut-item">
+            <span className="shortcut-keys"><kbd>M</kbd></span>
+            <span className="shortcut-desc">Mute / Unmute</span>
+          </div>
+          <div className="shortcut-item">
+            <span className="shortcut-keys"><kbd>?</kbd></span>
+            <span className="shortcut-desc">Show Shortcuts</span>
+          </div>
+        </div>
       </div>
     </div>
   );
