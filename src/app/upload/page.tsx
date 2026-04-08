@@ -125,11 +125,13 @@ export default function UploadPage() {
 
   return (
     <div className="upload-container">
-      <div style={{ marginBottom: "24px" }}>
-        <h1 style={{ fontSize: "32px", marginBottom: "8px" }}>Upload Masterpiece</h1>
-        <p style={{ color: "var(--text-secondary)" }}>
-          Upload high-resolution videos without limits. Select a Playlist if this is part of a series.
-        </p>
+      <div className="page-header" style={{ marginBottom: "24px" }}>
+        <div>
+          <h1 className="page-title">Upload Masterpiece</h1>
+          <p style={{ color: "var(--text-secondary)" }}>
+            Upload high-resolution videos without limits. Select a Playlist if this is part of a series.
+          </p>
+        </div>
       </div>
 
       <div className="glass-panel" style={{ padding: "40px", position: "relative" }}>

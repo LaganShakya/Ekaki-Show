@@ -56,9 +56,9 @@ export default function Home() {
 
   return (
     <>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div className="page-header">
         <div>
-          <h1 style={{ fontSize: "36px", marginBottom: "8px" }}>Your Library</h1>
+          <h1 className="page-title">Your Library</h1>
           <p style={{ color: "var(--text-secondary)" }}>Manage your playlists and standalone videos.</p>
         </div>
       </div>

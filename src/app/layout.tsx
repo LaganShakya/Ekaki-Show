@@ -30,7 +30,7 @@ export default function RootLayout({
             </Link>
             <Link href="/upload" className="btn-primary">
               <UploadCloud size={18} />
-              <span>Upload Video</span>
+              <span className="responsive-hidden-text">Upload Video</span>
             </Link>
           </div>
         </nav>

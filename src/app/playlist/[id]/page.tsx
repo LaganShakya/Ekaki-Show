@@ -83,23 +83,23 @@ export default function PlaylistPage({ params }: { params: Promise<{ id: string 
         Back to Library
       </Link>
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "32px", borderBottom: "1px solid var(--border)", paddingBottom: "32px" }}>
+      <div className="page-header" style={{ marginBottom: "32px", borderBottom: "1px solid var(--border)", paddingBottom: "32px" }}>
         <div>
           <span style={{ fontSize: "14px", color: "var(--accent)", fontWeight: 600, letterSpacing: "1px", textTransform: "uppercase", display: "flex", alignItems: "center", gap: "6px", marginBottom: "8px" }}>
             <Layers size={16} /> Playlist
           </span>
-          <h1 style={{ fontSize: "40px", marginBottom: "8px" }}>{playlist.title}</h1>
+          <h1 className="page-title">{playlist.title}</h1>
           <p style={{ color: "var(--text-secondary)" }}>{playlist.videos.length} parts</p>
         </div>
         
         <button 
           className="btn-primary" 
-          style={{ padding: "14px 32px", fontSize: "16px", opacity: canPlayAll ? 1 : 0.5, cursor: canPlayAll ? "pointer" : "not-allowed" }}
+          style={{ opacity: canPlayAll ? 1 : 0.5, cursor: canPlayAll ? "pointer" : "not-allowed" }}
           onClick={handlePlayAll}
           disabled={!canPlayAll}
         >
           <Play size={20} />
-          PLAY ALL SEAMLESSLY
+          PLAY ALL <span className="responsive-hidden-text" style={{ marginLeft: "4px" }}>SEAMLESSLY</span>
         </button>
       </div>
 
@@ -121,9 +121,9 @@ export default function PlaylistPage({ params }: { params: Promise<{ id: string 
                 {i + 1}
               </div>
               
-              <div style={{ flex: 1 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <h4 style={{ fontSize: "16px", marginBottom: "4px" }}>Part {i + 1}</h4>
-                <div style={{ fontSize: "13px", color: "var(--text-secondary)", fontFamily: "monospace" }}>
+                <div style={{ fontSize: "13px", color: "var(--text-secondary)", fontFamily: "monospace", wordBreak: "break-all", whiteSpace: "normal" }}>
                   Asset: {video.muxAssetId}
                 </div>
               </div>

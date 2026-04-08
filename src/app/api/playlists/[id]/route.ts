@@ -27,7 +27,28 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const populatedVideos = await Promise.all(
       playlist.videos.map(async (v) => {
         try {
-          const asset = await mux.video.assets.retrieve(v.muxAssetId);
+          let asset = null;
+          let currentId = v.muxAssetId;
+          
+          // First try to retrieve it directly as an asset
+          try {
+            asset = await mux.video.assets.retrieve(currentId);
+          } catch (e) {
+            // If it fails, it's likely an Upload ID (which we stored at creation)
+            const upload = await mux.video.uploads.retrieve(currentId);
+            if (upload.asset_id) {
+              asset = await mux.video.assets.retrieve(upload.asset_id);
+              // Heal the database so we don't have to do this 2-step lookup again!
+              await prisma.videoPart.update({
+                where: { id: v.id },
+                data: { muxAssetId: upload.asset_id }
+              });
+            } else {
+              // Still uploading/processing
+              return { ...v, muxData: { status: upload.status === 'waiting' ? 'preparing' : upload.status } };
+            }
+          }
+
           return {
             ...v,
             muxData: asset
