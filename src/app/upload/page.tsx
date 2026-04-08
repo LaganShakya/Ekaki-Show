@@ -16,10 +16,16 @@ export default function UploadPage() {
   const [progress, setProgress] = useState<number>(0);
   const [isUploading, setIsUploading] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
+  const [uploadSpeed, setUploadSpeed] = useState<string>("0 MB/s");
   
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<string>("none");
   const [newPlaylistTitle, setNewPlaylistTitle] = useState("");
+
+  const speedTracker = useRef({
+    lastBytes: 0,
+    lastTime: Date.now()
+  });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
@@ -86,29 +92,46 @@ export default function UploadPage() {
       
       const { url, id: muxAssetId } = await res.json();
 
-      // 2. Add to Playlist DB instantly so that it's grouped, even if processing
-      if (activePlaylistId) {
-        await fetch("/api/playlists/add-video", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ playlistId: activePlaylistId, muxAssetId })
-        });
-      }
-
-      // 3. Start the chunked upload directly to Mux
+      // 2. Start the chunked upload directly to Mux (32MB chunks for speed)
       const upload = UpChunk.createUpload({
         endpoint: url,
         file: file,
-        chunkSize: 5120, // 5MB chunks
+        chunkSize: 32768, // 32MB chunks (reduced overhead)
+        attempts: 5,      // Handle minor network glitches
       });
 
+      // 3. Add to Playlist DB concurrently - don't block the actual upload start
+      if (activePlaylistId) {
+        fetch("/api/playlists/add-video", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ playlistId: activePlaylistId, muxAssetId })
+        }).catch(err => console.error("Async DB register failed:", err));
+      }
+
       upload.on("progress", (progressEvent) => {
-        setProgress(progressEvent.detail);
+        const percent = progressEvent.detail;
+        setProgress(percent);
+
+        // Calculate speed
+        const currentTime = Date.now();
+        const timeDiff = (currentTime - speedTracker.current.lastTime) / 1000; // seconds
+        if (timeDiff >= 0.5) { // Update speed every 0.5s for stability
+          const currentBytes = (percent / 100) * file.size;
+          const bytesDiff = currentBytes - speedTracker.current.lastBytes;
+          const speedMBs = (bytesDiff / timeDiff) / (1024 * 1024);
+          
+          setUploadSpeed(`${speedMBs.toFixed(2)} MB/s`);
+          
+          speedTracker.current.lastBytes = currentBytes;
+          speedTracker.current.lastTime = currentTime;
+        }
       });
 
       upload.on("success", () => {
         setIsUploading(false);
         setIsComplete(true);
+        setUploadSpeed("0 MB/s");
       });
 
       upload.on("error", (err) => {
@@ -210,7 +233,12 @@ export default function UploadPage() {
             {isUploading && (
               <div className="upload-progress-container">
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
-                  <span style={{ fontWeight: 500 }}>Uploading chunks...</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    <span style={{ fontWeight: 500 }}>Uploading...</span>
+                    <span style={{ fontSize: "12px", background: "rgba(139, 92, 246, 0.2)", color: "var(--accent)", padding: "2px 8px", borderRadius: "10px", fontWeight: 600 }}>
+                      {uploadSpeed}
+                    </span>
+                  </div>
                   <span style={{ color: "var(--accent)", fontWeight: 600 }}>{progress.toFixed(1)}%</span>
                 </div>
                 <div className="progress-bar-bg">

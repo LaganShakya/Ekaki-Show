@@ -34,30 +34,36 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [vidError, setVidError] = useState<string | null>(null);
+  const [playError, setPlayError] = useState<string | null>(null);
+
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchVideos = async () => {
       try {
-        const [vidRes, playRes] = await Promise.all([
-          fetch("/api/videos"),
-          fetch("/api/playlists")
-        ]);
-        
+        const vidRes = await fetch("/api/videos");
         if (!vidRes.ok) throw new Error("Failed to fetch videos");
-        if (!playRes.ok) throw new Error("Failed to fetch playlists");
-        
         const vidData = await vidRes.json();
-        const playData = await playRes.json();
-        
         setVideos(vidData.assets || []);
+      } catch (err: any) {
+        setVidError(err.message);
+      }
+    };
+
+    const fetchPlaylists = async () => {
+      try {
+        const playRes = await fetch("/api/playlists");
+        if (!playRes.ok) throw new Error("Failed to fetch playlists");
+        const playData = await playRes.json();
         setPlaylists(playData.playlists || []);
       } catch (err: any) {
-        setError(err.message);
+        setPlayError(err.message);
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchData();
+    fetchVideos();
+    fetchPlaylists();
   }, []);
 
   // Filter out videos that belong to a playlist
@@ -73,24 +79,43 @@ export default function Home() {
         </div>
       </div>
 
-      {isLoading && (
+      {isLoading && videos.length === 0 && (
         <div style={{ display: "flex", justifyContent: "center", padding: "100px 0", gap: "12px", alignItems: "center" }}>
           <div className="spinner"></div>
           <span style={{ color: "var(--text-secondary)" }}>Loading library...</span>
         </div>
       )}
 
-      {error && !isLoading && (
+      {playError && (
         <div style={{ 
-          marginTop: "32px", 
-          padding: "20px", 
+          marginTop: "24px", 
+          padding: "16px", 
           background: "rgba(239, 68, 68, 0.1)", 
           border: "1px solid var(--error)",
           borderRadius: "var(--rounded-md)",
-          textAlign: "center"
+          display: "flex",
+          flexDirection: "column",
+          gap: "8px"
         }}>
-          <h3 style={{ color: "var(--error)", marginBottom: "8px" }}>Failed to load Library</h3>
-          <p style={{ color: "var(--text-secondary)" }}>{error}</p>
+          <h4 style={{ color: "var(--error)", margin: 0 }}>⚠️ Database Connection Issue</h4>
+          <p style={{ color: "var(--text-secondary)", fontSize: "14px", margin: 0 }}>
+            We couldn't connect to the database to fetch your playlists. Standalone videos from Mux are still visible below.
+            <br />
+            <span style={{ fontSize: "12px", opacity: 0.7 }}>Error: P1001 (Connection Timeout) - Check if your Supabase project is paused.</span>
+          </p>
+        </div>
+      )}
+
+      {vidError && (
+        <div style={{ 
+          marginTop: "24px", 
+          padding: "16px", 
+          background: "rgba(239, 68, 68, 0.1)", 
+          border: "1px solid var(--error)",
+          borderRadius: "var(--rounded-md)"
+        }}>
+          <h4 style={{ color: "var(--error)", margin: 0 }}>⚠️ Video Provider Error</h4>
+          <p style={{ color: "var(--text-secondary)", fontSize: "14px", margin: 0 }}>Failed to fetch videos from Mux. {vidError}</p>
         </div>
       )}
 
