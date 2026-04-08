@@ -11,10 +11,6 @@ export default function PlaylistPage({ params }: { params: Promise<{ id: string 
   const [playlist, setPlaylist] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editValue, setEditValue] = useState("");
-  const [saving, setSaving] = useState(false);
-  const editInputRef = useRef<HTMLInputElement>(null);
   
   const router = useRouter();
 
@@ -33,58 +29,7 @@ export default function PlaylistPage({ params }: { params: Promise<{ id: string 
 
   useEffect(() => {
     fetchPlaylist();
-    const interval = setInterval(fetchPlaylist, 5000);
-    return () => clearInterval(interval);
   }, [resolvedParams.id]);
-
-  useEffect(() => {
-    if (editingId && editInputRef.current) {
-      editInputRef.current.focus();
-      editInputRef.current.select();
-    }
-  }, [editingId]);
-
-  const startEditing = (video: any) => {
-    const displayName = video.title || `Part ${video.orderIndex + 1}`;
-    setEditingId(video.id);
-    setEditValue(displayName);
-  };
-
-  const cancelEditing = () => {
-    setEditingId(null);
-    setEditValue("");
-  };
-
-  const saveTitle = async (videoId: string) => {
-    if (saving) return;
-    setSaving(true);
-    try {
-      const res = await fetch("/api/playlists/rename-video", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ videoPartId: videoId, title: editValue })
-      });
-      if (!res.ok) throw new Error("Failed to rename");
-      // Update local state immediately
-      setPlaylist((prev: any) => ({
-        ...prev,
-        videos: prev.videos.map((v: any) =>
-          v.id === videoId ? { ...v, title: editValue.trim() } : v
-        )
-      }));
-      setEditingId(null);
-      setEditValue("");
-    } catch (err) {
-      console.error("Rename failed:", err);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent, videoId: string) => {
-    if (e.key === "Enter") saveTitle(videoId);
-    if (e.key === "Escape") cancelEditing();
-  };
 
   if (isLoading) {
     return (
@@ -118,6 +63,14 @@ export default function PlaylistPage({ params }: { params: Promise<{ id: string 
     }
   };
 
+  function formatDuration(seconds: number): string {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    if (h > 0) return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+    return `${m}:${s.toString().padStart(2, "0")}`;
+  }
+
   return (
     <div className="playlist-container">
       <Link href="/" className="playlist-back-link">
@@ -141,7 +94,7 @@ export default function PlaylistPage({ params }: { params: Promise<{ id: string 
           disabled={!canPlayAll}
         >
           <Play size={20} />
-          PLAY ALL <span className="responsive-hidden-text" style={{ marginLeft: "4px" }}>SEAMLESSLY</span>
+          PLAY SEAMLESSLY
         </button>
       </div>
 
@@ -157,8 +110,8 @@ export default function PlaylistPage({ params }: { params: Promise<{ id: string 
         
         {playlist.videos.map((video: any, i: number) => {
           const status = video.muxData?.status || "missing";
-          const isEditing = editingId === video.id;
           const displayName = video.title || `Part ${i + 1}`;
+          const duration = video.muxData?.duration;
           
           return (
             <div key={video.id} className="glass-panel playlist-part-card">
@@ -167,45 +120,21 @@ export default function PlaylistPage({ params }: { params: Promise<{ id: string 
               </div>
               
               <div className="playlist-part-info">
-                {isEditing ? (
-                  <div className="playlist-part-edit-row">
-                    <input
-                      ref={editInputRef}
-                      type="text"
-                      value={editValue}
-                      onChange={(e) => setEditValue(e.target.value)}
-                      onKeyDown={(e) => handleKeyDown(e, video.id)}
-                      className="playlist-part-edit-input"
-                      disabled={saving}
-                    />
-                    <button 
-                      className="playlist-part-edit-btn save"
-                      onClick={() => saveTitle(video.id)} 
-                      disabled={saving}
-                      title="Save"
-                    >
-                      <Check size={16} />
-                    </button>
-                    <button 
-                      className="playlist-part-edit-btn cancel"
-                      onClick={cancelEditing}
-                      title="Cancel"
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="playlist-part-name-row">
-                    <h4 className="playlist-part-title">{displayName}</h4>
-                    <button 
-                      className="playlist-part-rename-btn"
-                      onClick={() => startEditing(video)}
-                      title="Rename"
-                    >
-                      <Pencil size={14} />
-                    </button>
-                  </div>
-                )}
+                <div className="playlist-part-name-row">
+                  <h4 className="playlist-part-title">{displayName}</h4>
+                  {duration && (
+                    <span style={{ 
+                      fontSize: "13px", 
+                      color: "var(--text-secondary)", 
+                      background: "rgba(255,255,255,0.05)", 
+                      padding: "2px 8px", 
+                      borderRadius: "4px",
+                      marginLeft: "12px"
+                    }}>
+                      {formatDuration(duration)}
+                    </span>
+                  )}
+                </div>
               </div>
               
               <div className="status-badge" style={{ position: "static", flexShrink: 0 }}>
