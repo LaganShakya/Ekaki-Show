@@ -169,7 +169,12 @@ export default function Home() {
                   <div className="video-card glass-panel" style={{ opacity: asset.status === "ready" ? 1 : 0.7 }}>
                     <div style={{ position: "relative" }}>
                       {playbackId ? (
-                        <HoverProgressThumbnail playbackIds={[playbackId]} title={"Video Thumbnail"} totalDuration={asset.duration} />
+                        <HoverProgressThumbnail 
+                          playbackIds={[playbackId]} 
+                          title={"Video Thumbnail"} 
+                          totalDuration={asset.duration} 
+                          partDurations={asset.duration ? [asset.duration] : []}
+                        />
                       ) : (
                         <div className="video-thumbnail" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
                           <Play size={32} color="var(--border)" />
@@ -215,10 +220,20 @@ export default function Home() {
   );
 }
 
-function HoverProgressThumbnail({ playbackIds, title, totalDuration }: { playbackIds: string[], title: string, totalDuration?: number }) {
+function HoverProgressThumbnail({ 
+  playbackIds, 
+  title, 
+  totalDuration, 
+  partDurations 
+}: { 
+  playbackIds: string[], 
+  title: string, 
+  totalDuration?: number,
+  partDurations?: number[]
+}) {
   const [isHovered, setIsHovered] = useState(false);
   const [progressPercent, setProgressPercent] = useState<number | null>(null);
-  const [savedProgress, setSavedProgress] = useState<{ partIndex: number; currentTime: number } | null>(null);
+  const [savedProgress, setSavedProgress] = useState<{ partIndex: number; currentTime: number; totalWatchedTime: number } | null>(null);
 
   const thumbPlaybackId = playbackIds[0];
 
@@ -229,13 +244,21 @@ function HoverProgressThumbnail({ playbackIds, title, totalDuration }: { playbac
       if (raw) {
         const data = JSON.parse(raw);
         if (Date.now() - data.updatedAt < 30 * 24 * 60 * 60 * 1000) {
-          setSavedProgress({ partIndex: data.partIndex || 0, currentTime: data.currentTime || 0 });
+          const partIndex = data.partIndex || 0;
+          const currentTime = data.currentTime || 0;
+          
+          // Calculate total watched time across all previous parts
+          let totalWatched = currentTime;
+          if (partDurations && partDurations.length > 0) {
+            totalWatched = partDurations.slice(0, partIndex).reduce((sum, d) => sum + d, 0) + currentTime;
+          }
+
+          setSavedProgress({ partIndex, currentTime, totalWatchedTime: totalWatched });
+
           if (totalDuration && totalDuration > 0) {
-            const partDuration = totalDuration / playbackIds.length;
-            const watchedTime = (data.partIndex || 0) * partDuration + data.currentTime;
-            const pct = Math.min(95, Math.max(3, (watchedTime / totalDuration) * 100));
+            const pct = Math.min(95, Math.max(3, (totalWatched / totalDuration) * 100));
             setProgressPercent(pct);
-          } else if (data.currentTime > 10) {
+          } else if (currentTime > 10) {
             setProgressPercent(30);
           }
         }
@@ -271,7 +294,7 @@ function HoverProgressThumbnail({ playbackIds, title, totalDuration }: { playbac
       {savedProgress && isHovered && (
         <div className="thumbnail-continue-badge">
           <Play size={12} fill="white" />
-          Continue · {formatDuration(savedProgress.currentTime)}
+          Continue · {formatDuration(savedProgress.totalWatchedTime)}
         </div>
       )}
 
@@ -300,11 +323,14 @@ function PlaylistCard({ playlist, videos }: { playlist: Playlist, videos: VideoA
   
   const thumbPlaybackId = playbackIds[0];
 
-  // Calculate total playlist duration
-  const totalDuration = playlist.videos.reduce((sum, v) => {
+  // Calculate individual durations for each part
+  const partDurations = playlist.videos.map(v => {
     const asset = videos.find(a => a.id === v.muxAssetId);
-    return sum + (asset?.duration || 0);
-  }, 0);
+    return asset?.duration || 0;
+  });
+
+  // Calculate total playlist duration
+  const totalDuration = partDurations.reduce((sum, d) => sum + d, 0);
 
   // Check if user has watch progress
   const progressKey = `ekaki-progress:${playbackIds.join(",")}`;
@@ -361,7 +387,12 @@ function PlaylistCard({ playlist, videos }: { playlist: Playlist, videos: VideoA
         <div className="video-card glass-panel" style={{ border: "1px solid var(--accent-glow)" }}>
           <div style={{ position: "relative" }}>
             {thumbPlaybackId ? (
-              <HoverProgressThumbnail playbackIds={playbackIds} title={playlist.title} totalDuration={totalDuration} />
+              <HoverProgressThumbnail 
+                playbackIds={playbackIds} 
+                title={playlist.title} 
+                totalDuration={totalDuration} 
+                partDurations={partDurations}
+              />
             ) : (
               <div className="video-thumbnail" style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(139, 92, 246, 0.1)" }}>
                 <Layers size={40} color="var(--accent)" />
