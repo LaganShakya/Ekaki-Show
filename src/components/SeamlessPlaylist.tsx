@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from "react";
 import MuxPlayer from "@mux/mux-player-react";
 
 type ProgressData = {
@@ -41,16 +41,32 @@ function clearProgress(ids: string[]) {
   } catch {}
 }
 
-export default function SeamlessPlaylist({ ids, onPartChange }: { ids: string[]; onPartChange?: (index: number) => void }) {
+export interface SeamlessPlaylistRef {
+  goToPart: (index: number) => void;
+}
+
+const SeamlessPlaylist = forwardRef<SeamlessPlaylistRef, { ids: string[]; onPartChange?: (index: number) => void }>(({ ids, onPartChange }, ref) => {
   const [activeIndex, setActiveIndex] = useState(0);
   const [resumeTime, setResumeTime] = useState<number | null>(null);
   const [hasResumed, setHasResumed] = useState(false);
   const [showResumeBanner, setShowResumeBanner] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const pingPlayerRef = useRef<any>(null);
+  const pongPlayerRef = useRef<any>(null);
   const playerRef = useRef<any>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const saveIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const animationRef = useRef<number | null>(null);
+
+  useImperativeHandle(ref, () => ({
+    goToPart: (index: number) => {
+      if (index >= 0 && index < ids.length) {
+        setResumeTime(null);
+        setHasResumed(true);
+        setActiveIndex(index);
+      }
+    }
+  }));
 
   // Ambilight render loop
   useEffect(() => {
@@ -85,10 +101,32 @@ export default function SeamlessPlaylist({ ids, onPartChange }: { ids: string[];
     }
   }, []);
 
-  // Notify parent of part changes
+  // Sync the master playerRef and manage play/pause state on index change
   useEffect(() => {
+    const isPingActive = activeIndex % 2 === 0;
+    
+    if (isPingActive) {
+      playerRef.current = pingPlayerRef.current;
+      // Ensure the other player is paused when we switch
+      if (pongPlayerRef.current) pongPlayerRef.current.pause();
+      // Force play and reset time for a fresh start on the new part (if not resuming)
+      if (pingPlayerRef.current) {
+        if (resumeTime === null) pingPlayerRef.current.currentTime = 0;
+        pingPlayerRef.current.play();
+      }
+    } else {
+      playerRef.current = pongPlayerRef.current;
+      // Ensure the other player is paused when we switch
+      if (pingPlayerRef.current) pingPlayerRef.current.pause();
+      // Force play and reset time for a fresh start on the new part (if not resuming)
+      if (pongPlayerRef.current) {
+        if (resumeTime === null) pongPlayerRef.current.currentTime = 0;
+        pongPlayerRef.current.play();
+      }
+    }
+
     onPartChange?.(activeIndex);
-  }, [activeIndex]);
+  }, [activeIndex, onPartChange]);
 
   // Save progress periodically
   const saveCurrentProgress = useCallback(() => {
@@ -306,22 +344,22 @@ export default function SeamlessPlaylist({ ids, onPartChange }: { ids: string[];
       {/* PING PLAYER */}
       {pingId && (
         <MuxPlayer
-          ref={isPingActive ? playerRef : undefined}
+          ref={pingPlayerRef}
           playbackId={pingId}
           streamType="on-demand"
           primaryColor="#8b5cf6"
-          autoPlay={isPingActive}
-          onLoadedData={isPingActive ? handleLoadedData : undefined}
-          onEnded={isPingActive ? handleEnded : undefined}
+          autoPlay={activeIndex % 2 === 0}
+          onLoadedData={activeIndex % 2 === 0 ? handleLoadedData : undefined}
+          onEnded={activeIndex % 2 === 0 ? handleEnded : undefined}
           style={{
             position: "absolute",
             top: 0,
             left: 0,
             width: "100%",
             height: "100%",
-            opacity: isPingActive ? 1 : 0,
-            pointerEvents: isPingActive ? "auto" : "none",
-            zIndex: isPingActive ? 10 : 1,
+            opacity: activeIndex % 2 === 0 ? 1 : 0,
+            pointerEvents: activeIndex % 2 === 0 ? "auto" : "none",
+            zIndex: activeIndex % 2 === 0 ? 10 : 1,
           }}
         />
       )}
@@ -329,22 +367,22 @@ export default function SeamlessPlaylist({ ids, onPartChange }: { ids: string[];
       {/* PONG PLAYER */}
       {pongId && (
         <MuxPlayer
-          ref={!isPingActive ? playerRef : undefined}
+          ref={pongPlayerRef}
           playbackId={pongId}
           streamType="on-demand"
           primaryColor="#8b5cf6"
-          autoPlay={!isPingActive}
-          onLoadedData={!isPingActive ? handleLoadedData : undefined}
-          onEnded={!isPingActive ? handleEnded : undefined}
+          autoPlay={activeIndex % 2 !== 0}
+          onLoadedData={activeIndex % 2 !== 0 ? handleLoadedData : undefined}
+          onEnded={activeIndex % 2 !== 0 ? handleEnded : undefined}
           style={{
             position: "absolute",
             top: 0,
             left: 0,
             width: "100%",
             height: "100%",
-            opacity: !isPingActive ? 1 : 0,
-            pointerEvents: !isPingActive ? "auto" : "none",
-            zIndex: !isPingActive ? 10 : 1,
+            opacity: activeIndex % 2 !== 0 ? 1 : 0,
+            pointerEvents: activeIndex % 2 !== 0 ? "auto" : "none",
+            zIndex: activeIndex % 2 !== 0 ? 10 : 1,
           }}
         />
       )}
@@ -382,7 +420,9 @@ export default function SeamlessPlaylist({ ids, onPartChange }: { ids: string[];
       )}
     </div>
   );
-}
+});
+
+export default SeamlessPlaylist;
 
 function formatTime(seconds: number): string {
   const h = Math.floor(seconds / 3600);

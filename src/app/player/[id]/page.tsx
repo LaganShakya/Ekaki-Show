@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { ArrowLeft, Layers, Share2, ListMusic, ChevronDown, ChevronUp, Play } from "lucide-react";
-import SeamlessPlaylist from "@/components/SeamlessPlaylist";
-import { use, useEffect, useState, useCallback } from "react";
+import SeamlessPlaylist, { SeamlessPlaylistRef } from "@/components/SeamlessPlaylist";
+import { use, useEffect, useState, useCallback, useRef } from "react";
 
 type VideoInfo = {
   playbackId: string;
@@ -22,6 +22,7 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
   const [activePartIndex, setActivePartIndex] = useState(0);
   const [showParts, setShowParts] = useState(false);
   const [copied, setCopied] = useState(false);
+  const playlistRef = useRef<SeamlessPlaylistRef>(null);
 
   useEffect(() => {
     const fetchInfo = async () => {
@@ -87,7 +88,7 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
 
       {/* Video Player */}
       <div className="player-video-wrapper">
-        <SeamlessPlaylist ids={playbackIds} onPartChange={handlePartChange} />
+        <SeamlessPlaylist ref={playlistRef} ids={playbackIds} onPartChange={handlePartChange} />
       </div>
 
       {/* Info Section */}
@@ -145,6 +146,8 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
                   <div 
                     key={index} 
                     className={`player-part-item ${isActive ? "active" : ""}`}
+                    onClick={() => !isActive && playlistRef.current?.goToPart(index)}
+                    style={{ cursor: isActive ? "default" : "pointer" }}
                   >
                     <div className="player-part-index">
                       {isActive ? (
