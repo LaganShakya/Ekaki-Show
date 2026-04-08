@@ -897,6 +897,88 @@ input[type="file"] {
 
 
 /* =========================================
+   Double Tap to Skip (Mobile Only)
+   ========================================= */
+
+.doubletap-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  display: flex;
+  pointer-events: none;
+}
+
+.doubletap-zone {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+}
+
+.doubletap-zone.left {
+  border-radius: 0 50% 50% 0 / 0 50% 50% 0;
+}
+
+.doubletap-zone.right {
+  border-radius: 50% 0 0 50% / 50% 0 0 50%;
+}
+
+.doubletap-ripple {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: doubletapFadeOut 0.7s ease-out forwards;
+}
+
+@keyframes doubletapFadeOut {
+  0% { opacity: 1; }
+  70% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.doubletap-ripple-circle {
+  position: absolute;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  animation: doubletapRipple 0.5s ease-out forwards;
+}
+
+@keyframes doubletapRipple {
+  0% {
+    transform: scale(0.3);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1.2);
+    opacity: 0;
+  }
+}
+
+.doubletap-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: white;
+  font-size: 15px;
+  font-weight: 700;
+  z-index: 1;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  animation: doubletapPop 0.3s ease-out;
+}
+
+@keyframes doubletapPop {
+  0% { transform: scale(0.7); opacity: 0; }
+  60% { transform: scale(1.15); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* =========================================
    Responsive Utility Classes & Media Queries
    ========================================= */
 

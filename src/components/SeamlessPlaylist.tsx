@@ -162,6 +162,7 @@ export default function SeamlessPlaylist({ ids, onPartChange }: { ids: string[];
           onEnded={() => clearProgress(ids)}
           style={{ width: "100%", aspectRatio: "16/9", display: "block" }}
         />
+        <DoubleTapOverlay playerRef={playerRef} />
         {showResumeBanner && (
           <ResumeBanner 
             time={resumeTime!} 
@@ -255,6 +256,8 @@ export default function SeamlessPlaylist({ ids, onPartChange }: { ids: string[];
         Part {activeIndex + 1} of {ids.length}
       </div>
 
+      <DoubleTapOverlay playerRef={playerRef} />
+
       {/* Resume banner */}
       {showResumeBanner && (
         <ResumeBanner 
@@ -308,6 +311,82 @@ function ResumeBanner({
         <button className="resume-banner-btn dismiss" onClick={onDismiss}>
           ✕
         </button>
+      </div>
+    </div>
+  );
+}
+
+function DoubleTapOverlay({ playerRef }: { playerRef: React.RefObject<any> }) {
+  const [feedback, setFeedback] = useState<{ side: "left" | "right"; key: number } | null>(null);
+  const lastTapRef = useRef<{ time: number; side: "left" | "right" }>({ time: 0, side: "left" });
+  const tapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
+
+  useEffect(() => {
+    setIsTouchDevice("ontouchstart" in window || navigator.maxTouchPoints > 0);
+  }, []);
+
+  const handleTap = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const touchX = e.changedTouches[0].clientX - rect.left;
+    const side: "left" | "right" = touchX < rect.width / 2 ? "left" : "right";
+    const now = Date.now();
+
+    if (now - lastTapRef.current.time < 350 && lastTapRef.current.side === side) {
+      // Double tap detected!
+      if (tapTimeoutRef.current) clearTimeout(tapTimeoutRef.current);
+
+      const player = playerRef.current;
+      if (player && typeof player.currentTime === "number") {
+        if (side === "left") {
+          player.currentTime = Math.max(0, player.currentTime - 10);
+        } else {
+          player.currentTime = Math.min(player.duration || Infinity, player.currentTime + 10);
+        }
+      }
+
+      setFeedback({ side, key: now });
+      setTimeout(() => setFeedback(null), 700);
+      lastTapRef.current = { time: 0, side };
+    } else {
+      lastTapRef.current = { time: now, side };
+      // Let single taps pass through after a short delay
+      tapTimeoutRef.current = setTimeout(() => {
+        lastTapRef.current = { time: 0, side: "left" };
+      }, 350);
+    }
+  }, [playerRef]);
+
+  if (!isTouchDevice) return null;
+
+  return (
+    <div 
+      className="doubletap-overlay"
+      onTouchEnd={handleTap}
+    >
+      {/* Left side zone */}
+      <div className="doubletap-zone left">
+        {feedback?.side === "left" && (
+          <div key={feedback.key} className="doubletap-ripple">
+            <div className="doubletap-ripple-circle" />
+            <div className="doubletap-label">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/></svg>
+              <span>10s</span>
+            </div>
+          </div>
+        )}
+      </div>
+      {/* Right side zone */}
+      <div className="doubletap-zone right">
+        {feedback?.side === "right" && (
+          <div key={feedback.key} className="doubletap-ripple">
+            <div className="doubletap-ripple-circle" />
+            <div className="doubletap-label">
+              <span>10s</span>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
