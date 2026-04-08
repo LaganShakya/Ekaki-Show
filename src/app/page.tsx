@@ -100,7 +100,7 @@ export default function Home() {
                       <Layers size={40} color="var(--accent)" />
                     </div>
                     <div className="status-badge" style={{ background: "rgba(139, 92, 246, 0.8)", border: "none" }}>
-                      <span>{playlist.videos.length} PARTS</span>
+                      <span style={{ color: "white" }}>{playlist.videos.length} PARTS</span>
                     </div>
                   </div>
                   <div className="video-info">
@@ -149,9 +149,9 @@ export default function Home() {
                     </div>
                     
                     <div className="video-info">
-                      <div className="video-title" style={{ fontFamily: "monospace" }}>Asset: {asset.id.slice(0, 8)}</div>
+                      <div className="video-title">Video — {new Date(Number(asset.created_at) * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</div>
                       <div className="video-meta">
-                        {new Date(Number(asset.created_at) * 1000).toLocaleDateString()}
+                        {asset.status === "ready" ? "Ready to play" : asset.status}
                       </div>
                     </div>
                   </div>

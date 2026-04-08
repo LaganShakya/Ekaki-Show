@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
-import { ArrowLeft, Play, Layers } from "lucide-react";
+import { ArrowLeft, Play, Layers, Pencil, Check, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { use } from "react";
 
@@ -11,27 +11,80 @@ export default function PlaylistPage({ params }: { params: Promise<{ id: string 
   const [playlist, setPlaylist] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const [saving, setSaving] = useState(false);
+  const editInputRef = useRef<HTMLInputElement>(null);
   
   const router = useRouter();
 
+  const fetchPlaylist = async () => {
+    try {
+      const res = await fetch(`/api/playlists/${resolvedParams.id}`);
+      if (!res.ok) throw new Error("Failed to fetch playlist");
+      const data = await res.json();
+      setPlaylist(data.playlist);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchPlaylist = async () => {
-      try {
-        const res = await fetch(`/api/playlists/${resolvedParams.id}`);
-        if (!res.ok) throw new Error("Failed to fetch playlist");
-        const data = await res.json();
-        setPlaylist(data.playlist);
-      } catch (err: any) {
-        setError(err.message);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
     fetchPlaylist();
     const interval = setInterval(fetchPlaylist, 5000);
     return () => clearInterval(interval);
   }, [resolvedParams.id]);
+
+  useEffect(() => {
+    if (editingId && editInputRef.current) {
+      editInputRef.current.focus();
+      editInputRef.current.select();
+    }
+  }, [editingId]);
+
+  const startEditing = (video: any) => {
+    const displayName = video.title || `Part ${video.orderIndex + 1}`;
+    setEditingId(video.id);
+    setEditValue(displayName);
+  };
+
+  const cancelEditing = () => {
+    setEditingId(null);
+    setEditValue("");
+  };
+
+  const saveTitle = async (videoId: string) => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/playlists/rename-video", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ videoPartId: videoId, title: editValue })
+      });
+      if (!res.ok) throw new Error("Failed to rename");
+      // Update local state immediately
+      setPlaylist((prev: any) => ({
+        ...prev,
+        videos: prev.videos.map((v: any) =>
+          v.id === videoId ? { ...v, title: editValue.trim() } : v
+        )
+      }));
+      setEditingId(null);
+      setEditValue("");
+    } catch (err) {
+      console.error("Rename failed:", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent, videoId: string) => {
+    if (e.key === "Enter") saveTitle(videoId);
+    if (e.key === "Escape") cancelEditing();
+  };
 
   if (isLoading) {
     return (
@@ -66,30 +119,19 @@ export default function PlaylistPage({ params }: { params: Promise<{ id: string 
   };
 
   return (
-    <div style={{ maxWidth: "1000px", margin: "0 auto", padding: "20px 0" }}>
-      <Link 
-        href="/" 
-        style={{ 
-          display: "inline-flex", 
-          alignItems: "center", 
-          gap: "8px", 
-          marginBottom: "24px",
-          color: "var(--text-secondary)",
-          fontSize: "14px",
-          fontWeight: 500
-        }}
-      >
+    <div className="playlist-container">
+      <Link href="/" className="playlist-back-link">
         <ArrowLeft size={16} />
         Back to Library
       </Link>
 
-      <div className="page-header" style={{ marginBottom: "32px", borderBottom: "1px solid var(--border)", paddingBottom: "32px" }}>
+      <div className="page-header playlist-hero">
         <div>
-          <span style={{ fontSize: "14px", color: "var(--accent)", fontWeight: 600, letterSpacing: "1px", textTransform: "uppercase", display: "flex", alignItems: "center", gap: "6px", marginBottom: "8px" }}>
+          <span className="playlist-label">
             <Layers size={16} /> Playlist
           </span>
           <h1 className="page-title">{playlist.title}</h1>
-          <p style={{ color: "var(--text-secondary)" }}>{playlist.videos.length} parts</p>
+          <p style={{ color: "var(--text-secondary)" }}>{playlist.videos.length} part{playlist.videos.length !== 1 ? "s" : ""}</p>
         </div>
         
         <button 
@@ -105,9 +147,9 @@ export default function PlaylistPage({ params }: { params: Promise<{ id: string 
 
       <h3 style={{ marginBottom: "16px", fontSize: "20px" }}>Parts</h3>
       
-      <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      <div className="playlist-parts-list">
         {playlist.videos.length === 0 && (
-          <div style={{ background: "rgba(255,255,255,0.02)", padding: "40px", textAlign: "center", borderRadius: "12px", border: "1px dashed var(--border)" }}>
+          <div className="playlist-empty">
             <p style={{ color: "var(--text-secondary)" }}>No parts uploaded to this playlist yet.</p>
             <Link href="/upload" className="btn-secondary" style={{ marginTop: "16px" }}>Upload a Part</Link>
           </div>
@@ -115,20 +157,58 @@ export default function PlaylistPage({ params }: { params: Promise<{ id: string 
         
         {playlist.videos.map((video: any, i: number) => {
           const status = video.muxData?.status || "missing";
+          const isEditing = editingId === video.id;
+          const displayName = video.title || `Part ${i + 1}`;
+          
           return (
-            <div key={video.id} className="glass-panel" style={{ display: "flex", alignItems: "center", padding: "16px 24px", gap: "24px" }}>
-              <div style={{ fontSize: "24px", fontWeight: 800, color: "var(--border)" }}>
+            <div key={video.id} className="glass-panel playlist-part-card">
+              <div className="playlist-part-index">
                 {i + 1}
               </div>
               
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <h4 style={{ fontSize: "16px", marginBottom: "4px" }}>Part {i + 1}</h4>
-                <div style={{ fontSize: "13px", color: "var(--text-secondary)", fontFamily: "monospace", wordBreak: "break-all", whiteSpace: "normal" }}>
-                  Asset: {video.muxAssetId}
-                </div>
+              <div className="playlist-part-info">
+                {isEditing ? (
+                  <div className="playlist-part-edit-row">
+                    <input
+                      ref={editInputRef}
+                      type="text"
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      onKeyDown={(e) => handleKeyDown(e, video.id)}
+                      className="playlist-part-edit-input"
+                      disabled={saving}
+                    />
+                    <button 
+                      className="playlist-part-edit-btn save"
+                      onClick={() => saveTitle(video.id)} 
+                      disabled={saving}
+                      title="Save"
+                    >
+                      <Check size={16} />
+                    </button>
+                    <button 
+                      className="playlist-part-edit-btn cancel"
+                      onClick={cancelEditing}
+                      title="Cancel"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="playlist-part-name-row">
+                    <h4 className="playlist-part-title">{displayName}</h4>
+                    <button 
+                      className="playlist-part-rename-btn"
+                      onClick={() => startEditing(video)}
+                      title="Rename"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                  </div>
+                )}
               </div>
               
-              <div className="status-badge" style={{ position: "static" }}>
+              <div className="status-badge" style={{ position: "static", flexShrink: 0 }}>
                 <div className={`status-dot ${status}`}></div>
                 <span className={`status-text ${status}`}>{status}</span>
               </div>
