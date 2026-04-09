@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from "react";
 import MuxPlayer from "@mux/mux-player-react";
+import { Play, Pause, RotateCcw, RotateCw } from "lucide-react";
 
 type ProgressData = {
   partIndex: number;
@@ -51,6 +52,8 @@ const SeamlessPlaylist = forwardRef<SeamlessPlaylistRef, { ids: string[]; onPart
   const [hasResumed, setHasResumed] = useState(false);
   const [showResumeBanner, setShowResumeBanner] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [showOverlayControls, setShowOverlayControls] = useState(false);
+  const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pingPlayerRef = useRef<any>(null);
   const pongPlayerRef = useRef<any>(null);
   const playerRef = useRef<any>(null);
@@ -245,6 +248,40 @@ const SeamlessPlaylist = forwardRef<SeamlessPlaylistRef, { ids: string[]; onPart
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  // Show/Hide Controls logic
+  const triggerControls = useCallback(() => {
+    setShowOverlayControls(true);
+    if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+    controlsTimeoutRef.current = setTimeout(() => {
+      setShowOverlayControls(false);
+    }, 3000);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+    };
+  }, []);
+
+  // Control Actions
+  const seekBackward = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const player = playerRef.current;
+    if (player && typeof player.currentTime === "number") {
+      player.currentTime = Math.max(0, player.currentTime - 10);
+    }
+    triggerControls();
+  };
+
+  const seekForward = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const player = playerRef.current;
+    if (player && typeof player.currentTime === "number") {
+      player.currentTime = Math.min(player.duration || Infinity, player.currentTime + 10);
+    }
+    triggerControls();
+  };
+
   // Handle seeking to resume time once player is ready
   const handleLoadedData = useCallback(() => {
     if (resumeTime !== null && !hasResumed) {
@@ -278,7 +315,12 @@ const SeamlessPlaylist = forwardRef<SeamlessPlaylistRef, { ids: string[]; onPart
 
   if (ids.length === 1) {
     return (
-      <div style={{ position: "relative", width: "100%", aspectRatio: "16/9", background: "#000", borderRadius: "12px", overflow: "visible" }}>
+      <div 
+        style={{ position: "relative", width: "100%", aspectRatio: "16/9", background: "#000", borderRadius: "12px", overflow: "visible" }}
+        onMouseMove={triggerControls}
+        onClick={triggerControls}
+        onTouchStart={triggerControls}
+      >
         {/* Ambilight Canvas */}
         <canvas 
           ref={canvasRef}
@@ -299,7 +341,11 @@ const SeamlessPlaylist = forwardRef<SeamlessPlaylistRef, { ids: string[]; onPart
           onEnded={() => clearProgress(ids)}
           style={{ width: "100%", aspectRatio: "16/9", display: "block" }}
         />
-        <DoubleTapOverlay playerRef={playerRef} />
+        <PlayerControlsOverlay 
+          visible={showOverlayControls}
+          onBack={seekBackward}
+          onForward={seekForward}
+        />
         <KeyboardShortcutHelp show={showShortcuts} onClose={() => setShowShortcuts(false)} />
         {showResumeBanner && (
           <ResumeBanner 
@@ -329,7 +375,12 @@ const SeamlessPlaylist = forwardRef<SeamlessPlaylistRef, { ids: string[]; onPart
   };
 
   return (
-    <div style={{ position: "relative", width: "100%", aspectRatio: "16/9", background: "#000", borderRadius: "12px", overflow: "visible" }}>
+    <div 
+      style={{ position: "relative", width: "100%", aspectRatio: "16/9", background: "#000", borderRadius: "12px", overflow: "visible" }}
+      onMouseMove={triggerControls}
+      onClick={triggerControls}
+      onTouchStart={triggerControls}
+    >
       {/* Ambilight Canvas */}
       <canvas 
         ref={canvasRef}
@@ -350,6 +401,7 @@ const SeamlessPlaylist = forwardRef<SeamlessPlaylistRef, { ids: string[]; onPart
           primaryColor="#8b5cf6"
           autoPlay={activeIndex % 2 === 0}
           onLoadedData={activeIndex % 2 === 0 ? handleLoadedData : undefined}
+          onEnded={activeIndex % 2 === 0 ? handleEnded : undefined}
           onEnded={activeIndex % 2 === 0 ? handleEnded : undefined}
           style={{
             position: "absolute",
@@ -374,6 +426,7 @@ const SeamlessPlaylist = forwardRef<SeamlessPlaylistRef, { ids: string[]; onPart
           autoPlay={activeIndex % 2 !== 0}
           onLoadedData={activeIndex % 2 !== 0 ? handleLoadedData : undefined}
           onEnded={activeIndex % 2 !== 0 ? handleEnded : undefined}
+          onEnded={activeIndex % 2 !== 0 ? handleEnded : undefined}
           style={{
             position: "absolute",
             top: 0,
@@ -386,26 +439,18 @@ const SeamlessPlaylist = forwardRef<SeamlessPlaylistRef, { ids: string[]; onPart
           }}
         />
       )}
+
+      <PlayerControlsOverlay 
+        visible={showOverlayControls}
+        onBack={seekBackward}
+        onForward={seekForward}
+      />
       
       {/* Part indicator overlay */}
-      <div style={{
-          position: "absolute",
-          top: "16px",
-          right: "16px",
-          background: "rgba(0,0,0,0.6)",
-          padding: "6px 12px",
-          borderRadius: "20px",
-          color: "white",
-          fontSize: "12px",
-          fontWeight: 600,
-          zIndex: 20,
-          pointerEvents: "none",
-          backdropFilter: "blur(4px)"
-      }}>
+      <div className="player-part-badge">
         Part {activeIndex + 1} of {ids.length}
       </div>
 
-      <DoubleTapOverlay playerRef={playerRef} />
       <KeyboardShortcutHelp show={showShortcuts} onClose={() => setShowShortcuts(false)} />
 
       {/* Resume banner */}
@@ -423,6 +468,34 @@ const SeamlessPlaylist = forwardRef<SeamlessPlaylistRef, { ids: string[]; onPart
 });
 
 export default SeamlessPlaylist;
+
+function PlayerControlsOverlay({ 
+  visible, 
+  onBack, 
+  onForward 
+}: { 
+  visible: boolean; 
+  onBack: (e: React.MouseEvent) => void;
+  onForward: (e: React.MouseEvent) => void;
+}) {
+  return (
+    <div className={`player-controls-overlay ${visible ? 'visible' : ''}`}>
+      <div className="player-controls-center">
+        <button className="player-control-btn side" onClick={onBack}>
+          <RotateCcw size={28} />
+          <span className="control-label">10</span>
+        </button>
+        
+        <div className="player-controls-spacer" />
+        
+        <button className="player-control-btn side" onClick={onForward}>
+          <RotateCw size={28} />
+          <span className="control-label">10</span>
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function formatTime(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -468,86 +541,6 @@ function ResumeBanner({
   );
 }
 
-function DoubleTapOverlay({ playerRef }: { playerRef: React.RefObject<any> }) {
-  const [feedback, setFeedback] = useState<{ side: "left" | "right"; key: number } | null>(null);
-  const lastTapRef = useRef<{ time: number; side: "left" | "right" }>({ time: 0, side: "left" });
-  const tapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [isTouchDevice, setIsTouchDevice] = useState(false);
-
-  useEffect(() => {
-    setIsTouchDevice("ontouchstart" in window || navigator.maxTouchPoints > 0);
-  }, []);
-
-  const handleTap = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const touchX = e.changedTouches[0].clientX - rect.left;
-    const side: "left" | "right" = touchX < rect.width / 2 ? "left" : "right";
-    const now = Date.now();
-
-    if (now - lastTapRef.current.time < 350 && lastTapRef.current.side === side) {
-      // Double tap detected!
-      if (tapTimeoutRef.current) clearTimeout(tapTimeoutRef.current);
-
-      const player = playerRef.current;
-      if (player && typeof player.currentTime === "number") {
-        if (side === "left") {
-          player.currentTime = Math.max(0, player.currentTime - 10);
-        } else {
-          player.currentTime = Math.min(player.duration || Infinity, player.currentTime + 10);
-        }
-      }
-
-      setFeedback({ side, key: now });
-      setTimeout(() => setFeedback(null), 700);
-      lastTapRef.current = { time: 0, side };
-    } else {
-      lastTapRef.current = { time: now, side };
-      // Handle single tap after delay if no second tap happens
-      tapTimeoutRef.current = setTimeout(() => {
-        const player = playerRef.current;
-        if (player) {
-          if (player.paused) player.play();
-          else player.pause();
-        }
-        lastTapRef.current = { time: 0, side: "left" };
-      }, 350);
-    }
-  }, [playerRef]);
-
-  if (!isTouchDevice) return null;
-
-  return (
-    <div 
-      className="doubletap-overlay"
-      onTouchEnd={handleTap}
-    >
-      {/* Left side zone */}
-      <div className="doubletap-zone left">
-        {feedback?.side === "left" && (
-          <div key={feedback.key} className="doubletap-ripple">
-            <div className="doubletap-ripple-circle" />
-            <div className="doubletap-label">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/></svg>
-              <span>10s</span>
-            </div>
-          </div>
-        )}
-      </div>
-      {/* Right side zone */}
-      <div className="doubletap-zone right">
-        {feedback?.side === "right" && (
-          <div key={feedback.key} className="doubletap-ripple">
-            <div className="doubletap-ripple-circle" />
-            <div className="doubletap-label">
-              <span>10s</span>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
 
 function KeyboardShortcutHelp({ show, onClose }: { show: boolean, onClose: () => void }) {
   if (!show) return null;
