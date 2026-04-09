@@ -402,7 +402,6 @@ const SeamlessPlaylist = forwardRef<SeamlessPlaylistRef, { ids: string[]; onPart
           autoPlay={activeIndex % 2 === 0}
           onLoadedData={activeIndex % 2 === 0 ? handleLoadedData : undefined}
           onEnded={activeIndex % 2 === 0 ? handleEnded : undefined}
-          onEnded={activeIndex % 2 === 0 ? handleEnded : undefined}
           style={{
             position: "absolute",
             top: 0,
@@ -425,7 +424,6 @@ const SeamlessPlaylist = forwardRef<SeamlessPlaylistRef, { ids: string[]; onPart
           primaryColor="#8b5cf6"
           autoPlay={activeIndex % 2 !== 0}
           onLoadedData={activeIndex % 2 !== 0 ? handleLoadedData : undefined}
-          onEnded={activeIndex % 2 !== 0 ? handleEnded : undefined}
           onEnded={activeIndex % 2 !== 0 ? handleEnded : undefined}
           style={{
             position: "absolute",
