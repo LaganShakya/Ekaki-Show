@@ -13,11 +13,15 @@ type Playlist = {
 export default function UploadPage() {
   const [isDragActive, setIsDragActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isPaused, setIsPaused] = useState(false);
+  const [uploadInstance, setUploadInstance] = useState<any>(null);
+  const [showRecovery, setShowRecovery] = useState(false);
+  const [recoveredData, setRecoveredData] = useState<any>(null);
   const [progress, setProgress] = useState<number>(0);
   const [isUploading, setIsUploading] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const [uploadSpeed, setUploadSpeed] = useState<string>("0 MB/s");
-  
+
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<string>("none");
   const [newPlaylistTitle, setNewPlaylistTitle] = useState("");
@@ -30,14 +34,63 @@ export default function UploadPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
+  // Check for recovery data on mount
   useEffect(() => {
+    const saved = localStorage.getItem("pending_upload");
+    if (saved) {
+      const data = JSON.parse(saved);
+      // Check if it's older than 24 hours (Mux upload URLs default expiration)
+      if (Date.now() - data.timestamp < 24 * 60 * 60 * 1000) {
+        setRecoveredData(data);
+        setShowRecovery(true);
+      } else {
+        localStorage.removeItem("pending_upload");
+      }
+    }
+
     fetch("/api/playlists")
       .then(res => res.json())
       .then(data => {
         if (data.playlists) setPlaylists(data.playlists);
       })
       .catch(console.error);
-  }, []);
+
+    // Online/Offline detection
+    const handleOnline = () => {
+      console.log("Internet back online. Resuming upload...");
+      if (uploadInstance && isPaused) {
+        resumeUpload();
+      }
+    };
+    const handleOffline = () => {
+      console.log("Internet connection lost. Pausing upload...");
+      if (uploadInstance && !isPaused) {
+        pauseUpload();
+      }
+    };
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, [uploadInstance, isPaused]);
+
+  const pauseUpload = () => {
+    if (uploadInstance) {
+      uploadInstance.pause();
+      setIsPaused(true);
+    }
+  };
+
+  const resumeUpload = () => {
+    if (uploadInstance) {
+      uploadInstance.resume();
+      setIsPaused(false);
+    }
+  };
 
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault(); e.stopPropagation();
@@ -55,59 +108,104 @@ export default function UploadPage() {
     e.preventDefault(); e.stopPropagation();
     setIsDragActive(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      startUpload(e.dataTransfer.files[0]);
+      processFileSelection(e.dataTransfer.files[0]);
     }
   };
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      startUpload(e.target.files[0]);
+      processFileSelection(e.target.files[0]);
     }
   };
 
-  const startUpload = async (file: File) => {
+  const processFileSelection = (file: File) => {
+    const saved = localStorage.getItem("pending_upload");
+    if (saved) {
+      const data = JSON.parse(saved);
+      // Auto-resume if it matches exactly (within 24 hours)
+      if (
+        file.name === data.fileName && 
+        file.size === data.fileSize && 
+        Date.now() - data.timestamp < 24 * 60 * 60 * 1000
+      ) {
+        console.log("Auto-matching previous upload found. Resuming...");
+        startUpload(file, data.url, data.id);
+        return;
+      }
+    }
+    startUpload(file);
+  };
+
+  const startUpload = async (file: File, existingUrl?: string, existingMuxId?: string) => {
     setError(null);
     setProgress(0);
     setIsUploading(true);
     setIsComplete(false);
+    setIsPaused(false);
+    setShowRecovery(false);
+
+    // Request notification permission early
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
 
     try {
-      let activePlaylistId = selectedPlaylistId === "none" ? null : selectedPlaylistId;
+      let uploadUrl = existingUrl;
+      let muxAssetId = existingMuxId;
 
-      // Create new playlist on the fly if requested
-      if (selectedPlaylistId === "new" && newPlaylistTitle.trim()) {
-        const pRes = await fetch("/api/playlists", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title: newPlaylistTitle.trim() })
-        });
-        if (!pRes.ok) throw new Error("Failed to create playlist");
-        const pData = await pRes.json();
-        activePlaylistId = pData.playlist.id;
+      if (!uploadUrl) {
+        let activePlaylistId = selectedPlaylistId === "none" ? null : selectedPlaylistId;
+
+        // Create new playlist on the fly if requested
+        if (selectedPlaylistId === "new" && newPlaylistTitle.trim()) {
+          const pRes = await fetch("/api/playlists", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ title: newPlaylistTitle.trim() })
+          });
+          if (!pRes.ok) throw new Error("Failed to create playlist");
+          const pData = await pRes.json();
+          activePlaylistId = pData.playlist.id;
+        }
+
+        // 1. Get the upload URL from our secure API
+        const res = await fetch("/api/upload", { method: "POST" });
+        if (!res.ok) throw new Error("Failed to get upload URL");
+        
+        const data = await res.json();
+        uploadUrl = data.url;
+        muxAssetId = data.id;
+
+        // Save for persistence
+        localStorage.setItem("pending_upload", JSON.stringify({
+          url: uploadUrl,
+          id: muxAssetId,
+          fileName: file.name,
+          fileSize: file.size,
+          timestamp: Date.now()
+        }));
+
+        // 3. Add to Playlist DB concurrently
+        if (activePlaylistId) {
+          fetch("/api/playlists/add-video", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ playlistId: activePlaylistId, muxAssetId })
+          }).catch(err => console.error("Async DB register failed:", err));
+        }
       }
 
-      // 1. Get the upload URL from our secure API
-      const res = await fetch("/api/upload", { method: "POST" });
-      if (!res.ok) throw new Error("Failed to get upload URL");
-      
-      const { url, id: muxAssetId } = await res.json();
-
-      // 2. Start the chunked upload directly to Mux (32MB chunks for speed)
+      // 2. Start the chunked upload direktly to Mux
       const upload = UpChunk.createUpload({
-        endpoint: url,
+        endpoint: uploadUrl!,
         file: file,
-        chunkSize: 32768, // 32MB chunks (reduced overhead)
-        attempts: 5,      // Handle minor network glitches
+        chunkSize: 65536, // 64MB chunks for faster throughput on high speed
+        attempts: 100,    // High retry count for background/intermittent stability
+        // @ts-ignore - Some versions support useWorker
+        useWorker: true  
       });
 
-      // 3. Add to Playlist DB concurrently - don't block the actual upload start
-      if (activePlaylistId) {
-        fetch("/api/playlists/add-video", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ playlistId: activePlaylistId, muxAssetId })
-        }).catch(err => console.error("Async DB register failed:", err));
-      }
+      setUploadInstance(upload);
 
       upload.on("progress", (progressEvent) => {
         const percent = progressEvent.detail;
@@ -116,7 +214,7 @@ export default function UploadPage() {
         // Calculate speed
         const currentTime = Date.now();
         const timeDiff = (currentTime - speedTracker.current.lastTime) / 1000; // seconds
-        if (timeDiff >= 0.5) { // Update speed every 0.5s for stability
+        if (timeDiff >= 0.5) { // Update speed every 0.5s
           const currentBytes = (percent / 100) * file.size;
           const bytesDiff = currentBytes - speedTracker.current.lastBytes;
           const speedMBs = (bytesDiff / timeDiff) / (1024 * 1024);
@@ -132,12 +230,23 @@ export default function UploadPage() {
         setIsUploading(false);
         setIsComplete(true);
         setUploadSpeed("0 MB/s");
+        setUploadInstance(null);
+        localStorage.removeItem("pending_upload");
+
+        // Background notification
+        if ("Notification" in window && Notification.permission === "granted") {
+          new Notification("Upload Complete! 🎉", {
+            body: `"${file.name}" has been successfully uploaded and is now processing.`,
+            silent: false
+          });
+        }
       });
 
       upload.on("error", (err) => {
         console.error("Upload error:", err);
         setError(err.detail?.message || "Upload failed");
         setIsUploading(false);
+        setUploadInstance(null);
       });
       
     } catch (err: any) {
@@ -145,6 +254,7 @@ export default function UploadPage() {
       setIsUploading(false);
     }
   };
+
 
   return (
     <div className="upload-container">
@@ -158,6 +268,62 @@ export default function UploadPage() {
       </div>
 
       <div className="glass-panel" style={{ padding: "40px", position: "relative" }}>
+        {showRecovery && recoveredData && (
+          <div style={{ 
+            marginBottom: "24px", 
+            padding: "20px", 
+            background: "rgba(139, 92, 246, 0.1)", 
+            border: "1px solid var(--accent)", 
+            borderRadius: "12px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "12px"
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <AlertCircle size={20} color="var(--accent)" />
+              <h3 style={{ margin: 0, fontSize: "16px" }}>Unfinished Upload Found</h3>
+            </div>
+            <p style={{ margin: 0, fontSize: "14px", color: "var(--text-secondary)" }}>
+              We found an unfinished upload for <strong>{recoveredData.fileName}</strong>. 
+              To resume, please select the same file again.
+            </p>
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button 
+                className="btn-primary" 
+                style={{ padding: "8px 16px", fontSize: "14px" }}
+                onClick={() => {
+                  const input = document.createElement('input');
+                  input.type = 'file';
+                  input.accept = 'video/*';
+                  input.onchange = (e: any) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      if (file.size === recoveredData.fileSize) {
+                        startUpload(file, recoveredData.url, recoveredData.id);
+                      } else {
+                        alert("Selected file does not match the size of the previous upload.");
+                      }
+                    }
+                  };
+                  input.click();
+                }}
+              >
+                Resume Upload
+              </button>
+              <button 
+                className="btn-secondary" 
+                style={{ padding: "8px 16px", fontSize: "14px" }}
+                onClick={() => {
+                  localStorage.removeItem("pending_upload");
+                  setShowRecovery(false);
+                }}
+              >
+                Discard
+              </button>
+            </div>
+          </div>
+        )}
+
         {isComplete ? (
           <div style={{ textAlign: "center", padding: "40px 0" }}>
             <CheckCircle size={64} color="#10b981" style={{ margin: "0 auto 16px" }} />
@@ -168,10 +334,7 @@ export default function UploadPage() {
             <button className="btn-primary" onClick={() => {
               setIsComplete(false);
               setProgress(0);
-              const fileInput = document.createElement('input');
-              fileInput.type = 'file';
-              fileInput.onchange = handleFileInput as any;
-              fileInput.click();
+              fileInputRef.current?.click();
             }}>
               Upload Another Part
             </button>
@@ -234,15 +397,28 @@ export default function UploadPage() {
               <div className="upload-progress-container">
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                    <span style={{ fontWeight: 500 }}>Uploading...</span>
+                    <span style={{ fontWeight: 500 }}>{isPaused ? "Paused" : "Uploading..."}</span>
                     <span style={{ fontSize: "12px", background: "rgba(139, 92, 246, 0.2)", color: "var(--accent)", padding: "2px 8px", borderRadius: "10px", fontWeight: 600 }}>
-                      {uploadSpeed}
+                      {!isPaused ? uploadSpeed : "0 MB/s"}
                     </span>
                   </div>
                   <span style={{ color: "var(--accent)", fontWeight: 600 }}>{progress.toFixed(1)}%</span>
                 </div>
                 <div className="progress-bar-bg">
-                  <div className="progress-bar-fill" style={{ width: `${progress}%` }}></div>
+                  <div className={`progress-bar-fill ${isPaused ? "paused" : ""}`} style={{ width: `${progress}%` }}></div>
+                </div>
+                <div style={{ marginTop: "16px", display: "flex", gap: "12px" }}>
+                   {isPaused ? (
+                     <button onClick={resumeUpload} className="btn-primary" style={{ padding: "8px 16px", background: "var(--accent)" }}>
+                       <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                       Resume
+                     </button>
+                   ) : (
+                     <button onClick={pauseUpload} className="btn-secondary" style={{ padding: "8px 16px" }}>
+                       <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                       Pause
+                     </button>
+                   )}
                 </div>
               </div>
             )}
