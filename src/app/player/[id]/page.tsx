@@ -70,105 +70,107 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
   };
 
   return (
-    <div className="player-page">
+    <div className="player-page animate-in">
+      <div className="player-ambient-glow" />
 
       <div className="player-top-bar">
         <Link href="/" className="player-back-btn">
-          <ArrowLeft size={18} />
-          <span className="responsive-hidden-text">Back</span>
+          <ArrowLeft size={20} />
+          <span className="responsive-hidden-text">Back to Library</span>
         </Link>
         
-        <div className="player-top-actions">
-          <button className="player-action-btn" onClick={handleShare} title="Share">
-            <Share2 size={18} />
-            <span className="responsive-hidden-text">{copied ? "Copied!" : "Share"}</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Video Player */}
-      <div className="player-video-wrapper">
-        <SeamlessPlaylist ref={playlistRef} ids={playbackIds} onPartChange={handlePartChange} />
-      </div>
-
-      {/* Info Section */}
-      <div className="player-info-section">
-        <div className="player-info-main">
-          <div className="player-title-row">
-            <h1 className="player-video-title">
-              {isPlaylist && <Layers size={22} color="var(--accent)" className="player-title-icon" />}
-              {isLoading ? (
-                <span className="player-title-skeleton" />
-              ) : (
-                <span className="player-title-text">{displayTitle}</span>
-              )}
-            </h1>
+          <div className="player-top-actions">
+            <button className="player-action-btn" onClick={handleShare} title="Share Content" aria-label="Share this video or playlist">
+              <Share2 size={18} />
+              <span>{copied ? "Copied!" : "Share"}</span>
+            </button>
           </div>
-          
-          {!isLoading && (
-            <div className="player-meta-row">
-              {isPlaylist ? (
-                <>
-                  <span className="player-meta-tag">
-                    <ListMusic size={14} />
-                    {playbackIds.length} parts
-                  </span>
-                  <span className="player-meta-divider">·</span>
-                  <span className="player-meta-tag player-meta-active-part">
-                    Now playing: {getPartName(activePartIndex)}
-                  </span>
-                </>
-              ) : (
-                <span className="player-meta-tag">On-demand stream</span>
+        </div>
+
+      <div className="player-main-layout">
+        <div className="player-content-area">
+          {/* Video Player wrapper inherits glass-premium now */}
+          <div className="player-video-wrapper">
+            <SeamlessPlaylist ref={playlistRef} ids={playbackIds} onPartChange={handlePartChange} />
+          </div>
+
+          <div className="player-info-section">
+            <div className="player-info-main">
+              <div className="player-title-stack">
+                <span className="player-category-badge">{isPlaylist ? "Playlist" : "Single Video"}</span>
+                <h1 className="player-video-title">
+                  {isLoading ? (
+                    <span className="player-title-skeleton" />
+                  ) : (
+                    <span className="player-title-text">{displayTitle}</span>
+                  )}
+                </h1>
+              </div>
+              
+              {!isLoading && (
+                <div className="player-meta-row">
+                  {isPlaylist ? (
+                    <div className="player-meta-group">
+                      <div className="player-meta-tags">
+                        <span className="player-meta-tag">
+                          <ListMusic size={14} />
+                          {playbackIds.length} segments
+                        </span>
+                      </div>
+                      <span className="player-meta-active-part">
+                        Now playing: <span className="aurora-text">{getPartName(activePartIndex)}</span>
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="player-meta-tag">High Fidelity Stream</span>
+                  )}
+                </div>
               )}
             </div>
-          )}
+          </div>
         </div>
 
-        {/* Playlist Parts Panel */}
+        {/* New Sidebar-style Playlist Panel */}
         {isPlaylist && !isLoading && (
-          <div className="player-parts-panel">
-            <button 
-              className="player-parts-toggle" 
-              onClick={() => setShowParts(!showParts)}
-            >
-              <div className="player-parts-toggle-text">
-                <ListMusic size={16} />
-                <span>Playlist ({playbackIds.length} parts)</span>
-              </div>
-              {showParts ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-            </button>
+          <aside className="player-sidebar glass-panel">
+            <div className="sidebar-header">
+              <h3 className="sidebar-title">
+                <Layers size={18} />
+                Playlist Parts
+              </h3>
+              <span className="sidebar-count">{activePartIndex + 1} / {playbackIds.length}</span>
+            </div>
             
-            <div className={`player-parts-list ${showParts ? "open" : ""}`}>
+            <div className="sidebar-scroll-area">
               {playbackIds.map((id, index) => {
                 const isActive = index === activePartIndex;
                 return (
                   <div 
                     key={index} 
-                    className={`player-part-item ${isActive ? "active" : ""}`}
+                    className={`sidebar-item ${isActive ? "active" : ""}`}
                     onClick={() => !isActive && playlistRef.current?.goToPart(index)}
-                    style={{ cursor: isActive ? "default" : "pointer" }}
                   >
-                    <div className="player-part-index">
+                    <div className="sidebar-item-index">
                       {isActive ? (
-                        <div className="player-part-playing-indicator">
+                        <div className="playing-bars">
                           <span /><span /><span />
                         </div>
                       ) : (
                         <span>{index + 1}</span>
                       )}
                     </div>
-                    <div className="player-part-name">
-                      {getPartName(index)}
+                    <div className="sidebar-item-info">
+                      <span className="sidebar-item-name">{getPartName(index)}</span>
+                      {isActive && <span className="sidebar-active-label">Active</span>}
                     </div>
-                    {isActive && (
-                      <span className="player-part-now-badge">NOW</span>
-                    )}
+                    <div className="sidebar-item-play">
+                      <Play size={14} fill={isActive ? "currentColor" : "none"} />
+                    </div>
                   </div>
                 );
               })}
             </div>
-          </div>
+          </aside>
         )}
       </div>
     </div>

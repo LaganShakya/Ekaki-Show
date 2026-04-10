@@ -72,39 +72,68 @@ export default function PlaylistPage({ params }: { params: Promise<{ id: string 
   }
 
   return (
-    <div className="playlist-container">
-      <Link href="/" className="playlist-back-link">
+    <div className="playlist-container animate-in">
+      <Link href="/" className="playlist-back-link" style={{ marginBottom: "24px", display: "inline-flex", alignItems: "center", gap: "8px", fontSize: "14px", color: "var(--text-secondary)" }}>
         <ArrowLeft size={16} />
-        Back to Library
+        <span>Return to Library</span>
       </Link>
 
-      <div className="page-header playlist-hero">
-        <div>
-          <span className="playlist-label">
-            <Layers size={16} /> Playlist
+      <div className="page-header playlist-hero" style={{ 
+        display: "flex", 
+        justifyContent: "space-between", 
+        alignItems: "flex-end", 
+        paddingBottom: "48px",
+        flexWrap: "wrap",
+        gap: "32px"
+      }}>
+        <div className="playlist-hero-info">
+          <span className="hero-badge">
+            <Layers size={14} style={{ marginRight: "8px", verticalAlign: "middle" }} /> 
+            Collection Segment
           </span>
           <h1 className="page-title">{playlist.title}</h1>
-          <p style={{ color: "var(--text-secondary)" }}>{playlist.videos.length} part{playlist.videos.length !== 1 ? "s" : ""}</p>
+          <div className="playlist-meta">
+            <span className="playlist-meta-item">
+              {playlist.videos.length} serialized parts
+            </span>
+            <span className="meta-dot" />
+            <span className="playlist-master-badge">
+              Cinematic Master
+            </span>
+          </div>
         </div>
         
         <button 
           className="btn-primary" 
-          style={{ opacity: canPlayAll ? 1 : 0.5, cursor: canPlayAll ? "pointer" : "not-allowed" }}
+          style={{ 
+            opacity: canPlayAll ? 1 : 0.5, 
+            cursor: canPlayAll ? "pointer" : "not-allowed",
+            padding: "16px 32px",
+            fontSize: "16px",
+            flexShrink: 0
+          }}
           onClick={handlePlayAll}
           disabled={!canPlayAll}
         >
-          <Play size={20} />
+          <Play size={20} fill="currentColor" />
           PLAY SEAMLESSLY
         </button>
       </div>
 
-      <h3 style={{ marginBottom: "16px", fontSize: "20px" }}>Parts</h3>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "24px", borderBottom: "1px solid var(--border-subtle)", paddingBottom: "12px" }}>
+        <h3 style={{ fontSize: "22px", fontWeight: 700, letterSpacing: "-0.02em" }}>Segment Index</h3>
+        {canPlayAll && (
+          <span style={{ fontSize: "14px", color: "var(--text-dim)", fontWeight: 500 }}>
+            <span style={{ color: "var(--text-secondary)", marginRight: "4px" }}>{formatDuration(playlist.videos.reduce((acc: number, v: any) => acc + (v.muxData?.duration || 0), 0))}</span> Total Runtime
+          </span>
+        )}
+      </div>
       
-      <div className="playlist-parts-list">
+      <div className="playlist-parts-list" style={{ gap: "12px" }}>
         {playlist.videos.length === 0 && (
-          <div className="playlist-empty">
-            <p style={{ color: "var(--text-secondary)" }}>No parts uploaded to this playlist yet.</p>
-            <Link href="/upload" className="btn-secondary" style={{ marginTop: "16px" }}>Upload a Part</Link>
+          <div className="playlist-empty glass-premium" style={{ borderStyle: "dashed", padding: "60px" }}>
+            <p style={{ color: "var(--text-secondary)", fontSize: "16px" }}>This collection currently contains no visual segments.</p>
+            <Link href="/upload" className="btn-secondary" style={{ marginTop: "24px" }}>Initiate Upload</Link>
           </div>
         )}
         
@@ -114,22 +143,34 @@ export default function PlaylistPage({ params }: { params: Promise<{ id: string 
           const duration = video.muxData?.duration;
           
           return (
-            <div key={video.id} className="glass-panel playlist-part-card">
-              <div className="playlist-part-index">
-                {i + 1}
+            <div 
+              key={video.id} 
+              className="glow-card glass-premium playlist-part-card"
+            >
+              <div className="playlist-part-index" style={{ 
+                color: "var(--accent-primary)", 
+                opacity: 0.8,
+                fontSize: "24px",
+                fontWeight: 700,
+                width: "40px",
+                flexShrink: 0
+              }}>
+                {String(i + 1).padStart(2, "0")}
               </div>
               
-              <div className="playlist-part-info">
-                <div className="playlist-part-name-row">
-                  <h4 className="playlist-part-title">{displayName}</h4>
+              <div className="playlist-part-info" style={{ flex: 1 }}>
+                <div className="playlist-part-name-row" style={{ display: "flex", alignItems: "center" }}>
+                  <h4 className="playlist-part-title" style={{ fontSize: "18px", fontWeight: 600 }}>{displayName}</h4>
                   {duration && (
                     <span style={{ 
-                      fontSize: "13px", 
-                      color: "var(--text-secondary)", 
-                      background: "rgba(255,255,255,0.05)", 
-                      padding: "2px 8px", 
-                      borderRadius: "4px",
-                      marginLeft: "12px"
+                      fontSize: "12px", 
+                      color: "var(--text-dim)", 
+                      background: "rgba(255,255,255,0.03)", 
+                      padding: "4px 10px", 
+                      borderRadius: "20px",
+                      marginLeft: "16px",
+                      fontWeight: 700,
+                      fontVariantNumeric: "tabular-nums"
                     }}>
                       {formatDuration(duration)}
                     </span>
@@ -137,10 +178,20 @@ export default function PlaylistPage({ params }: { params: Promise<{ id: string 
                 </div>
               </div>
               
-              <div className="status-badge" style={{ position: "static", flexShrink: 0 }}>
+              <div className="status-badge" style={{ position: "static", flexShrink: 0, padding: "6px 14px", marginLeft: "auto" }}>
                 <div className={`status-dot ${status}`}></div>
-                <span className={`status-text ${status}`}>{status}</span>
+                <span className={`status-text ${status}`} style={{ fontSize: "12px", fontWeight: 700 }}>{status}</span>
               </div>
+              
+              {status === "ready" && (
+                <button 
+                  className="card-options-btn" 
+                  style={{ marginLeft: "16px", flexShrink: 0 }}
+                  onClick={() => router.push(`/player/${video.muxData.playback_ids[0].id}`)}
+                >
+                  <Play size={14} fill="currentColor" />
+                </button>
+              )}
             </div>
           );
         })}

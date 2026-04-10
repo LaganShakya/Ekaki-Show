@@ -165,47 +165,89 @@ export default function UploadPage() {
 
 
   return (
-    <div className="upload-container">
-      <div className="page-header" style={{ marginBottom: "24px" }}>
+    <div className="upload-container animate-in">
+      <div className="page-header" style={{ marginBottom: "32px", textAlign: "center" }}>
         <div>
-          <h1 className="page-title">Upload Masterpiece</h1>
-          <p style={{ color: "var(--text-secondary)" }}>
-            Upload high-resolution videos without limits. Select a Playlist if this is part of a series.
+          <h1 className="page-title">
+            Upload <span className="aurora-text">Masterpiece</span>
+          </h1>
+          <p style={{ color: "var(--text-secondary)", fontSize: "16px", marginTop: "12px" }}>
+            Experience high-fidelity uploads with intelligent chunking.
           </p>
         </div>
       </div>
 
-      <div className="glass-panel" style={{ padding: "40px", position: "relative" }}>
+      <div className="glass-premium" style={{ padding: "40px", position: "relative" }}>
         {isComplete ? (
           <div style={{ textAlign: "center", padding: "40px 0" }}>
-            <CheckCircle size={64} color="#10b981" style={{ margin: "0 auto 16px" }} />
-            <h2 style={{ marginBottom: "16px", color: "#10b981" }}>Upload Complete!</h2>
-            <p style={{ color: "var(--text-secondary)", marginBottom: "32px" }}>
-              Your video is now processing on Mux. It will be available in your library shortly.
-            </p>
-            <button className="btn-primary" onClick={() => {
-              setIsComplete(false);
-              setProgress(0);
-              fileInputRef.current?.click();
+            <div style={{ 
+              width: "80px", 
+              height: "80px", 
+              background: "rgba(52, 211, 153, 0.1)", 
+              borderRadius: "50%", 
+              display: "flex", 
+              alignItems: "center", 
+              justifyContent: "center",
+              margin: "0 auto 24px"
             }}>
-              Upload Another Part
-            </button>
-            <button className="btn-secondary" style={{ marginLeft: "12px" }} onClick={() => router.push("/")}>
-              Go Home
-            </button>
+              <CheckCircle size={48} color="var(--success)" />
+            </div>
+            <h2 style={{ marginBottom: "12px", color: "var(--success)", fontSize: "28px" }}>Upload Complete!</h2>
+            <p style={{ color: "var(--text-secondary)", marginBottom: "32px", maxWidth: "400px", margin: "0 auto 32px" }}>
+              Your cinematic asset is now being processed and will be available in your library shortly.
+            </p>
+            <div style={{ display: "flex", justifyContent: "center", gap: "16px" }}>
+              <button className="btn-primary" onClick={() => {
+                setIsComplete(false);
+                setProgress(0);
+                fileInputRef.current?.click();
+              }}>
+                Upload Another
+              </button>
+              <button className="btn-secondary" onClick={() => router.push("/")}>
+                Return Home
+              </button>
+            </div>
           </div>
         ) : (
           <>
-            <div style={{ textAlign: "left", marginBottom: "24px", background: "rgba(255,255,255,0.02)", padding: "20px", borderRadius: "12px", border: "1px solid var(--border)" }}>
-              <label style={{ display: "block", marginBottom: "8px", fontWeight: 500 }}>Add to Playlist (Optional)</label>
+            <div style={{ 
+              textAlign: "left", 
+              marginBottom: "32px", 
+              background: "rgba(255,255,255,0.02)", 
+              padding: "24px", 
+              borderRadius: "var(--rounded-md)", 
+              border: "1px solid var(--border-bold)" 
+            }}>
+              <label style={{ 
+                display: "block", 
+                marginBottom: "12px", 
+                fontWeight: 600, 
+                fontSize: "14px",
+                color: "var(--accent-secondary)",
+                textTransform: "uppercase",
+                letterSpacing: "1px"
+              }}>
+                Context Selection
+              </label>
               <select 
                 value={selectedPlaylistId}
                 onChange={(e) => setSelectedPlaylistId(e.target.value)}
-                style={{ width: "100%", padding: "10px", background: "var(--bg-surface)", color: "white", border: "1px solid var(--border)", borderRadius: "6px", marginBottom: selectedPlaylistId === "new" ? "12px" : "0" }}
+                style={{ 
+                  width: "100%", 
+                  padding: "14px", 
+                  background: "var(--bg-deep)", 
+                  color: "white", 
+                  border: "1px solid var(--border-bold)", 
+                  borderRadius: "10px", 
+                  marginBottom: selectedPlaylistId === "new" ? "16px" : "0",
+                  outline: "none",
+                  fontFamily: "inherit"
+                }}
                 disabled={isUploading}
               >
                 <option value="none">Standalone Video</option>
-                <option value="new">+ Create New Playlist</option>
+                <option value="new">+ Create New Collection</option>
                 {playlists.map(p => (
                   <option key={p.id} value={p.id}>{p.title}</option>
                 ))}
@@ -214,23 +256,38 @@ export default function UploadPage() {
               {selectedPlaylistId === "new" && (
                 <input 
                   type="text"
-                  placeholder="Enter Playlist Name..."
+                  placeholder="Collection Title..."
                   value={newPlaylistTitle}
                   onChange={e => setNewPlaylistTitle(e.target.value)}
-                  style={{ width: "100%", padding: "10px", background: "var(--bg-surface)", color: "white", border: "1px solid var(--border)", borderRadius: "6px" }}
+                  style={{ 
+                    width: "100%", 
+                    padding: "14px", 
+                    background: "var(--bg-deep)", 
+                    color: "white", 
+                    border: "1px solid var(--accent-primary)", 
+                    borderRadius: "10px",
+                    outline: "none",
+                    boxShadow: "0 0 15px rgba(192, 132, 252, 0.1)"
+                  }}
                   disabled={isUploading}
                 />
               )}
             </div>
 
             <div
-              className={`upload-dropzone ${isDragActive ? "active" : ""}`}
+              className={`upload-dropzone glow-card ${isDragActive ? "active" : ""}`}
               onDragEnter={handleDragEnter}
               onDragLeave={handleDragLeave}
               onDragOver={handleDragOver}
               onDrop={handleDrop}
               onClick={() => !isUploading && fileInputRef.current?.click()}
-              style={{ pointerEvents: isUploading ? "none" : "auto", opacity: isUploading ? 0.5 : 1, marginTop: 0 }}
+              style={{ 
+                pointerEvents: isUploading ? "none" : "auto", 
+                opacity: isUploading ? 0.4 : 1, 
+                marginTop: 0,
+                borderStyle: "dashed",
+                padding: "60px 40px"
+              }}
             >
               <input
                 type="file"
@@ -238,25 +295,33 @@ export default function UploadPage() {
                 onChange={handleFileInput}
                 accept="video/*"
               />
-              <UploadCloud className="upload-icon" />
-              <h3>{isDragActive ? "Drop the video here" : "Drag & drop a video"}</h3>
+              <div className="brand-icon-wrapper" style={{ margin: "0 auto 20px", width: "64px", height: "64px" }}>
+                <UploadCloud size={32} />
+              </div>
+              <h3 style={{ fontSize: "20px", marginBottom: "8px" }}>
+                {isDragActive ? "Release to drop" : "Drag & drop your visual"}
+              </h3>
               <p style={{ color: "var(--text-secondary)", fontSize: "14px" }}>
-                or click to browse your files
+                Supporting high-bitrate MP4, MOV, and MKV up to 5GB
               </p>
             </div>
 
             {isUploading && (
-              <div className="upload-progress-container">
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                    <span style={{ fontWeight: 500 }}>Uploading...</span>
-                    <span style={{ fontSize: "12px", background: "rgba(139, 92, 246, 0.2)", color: "var(--accent)", padding: "2px 8px", borderRadius: "10px", fontWeight: 600 }}>
-                      {uploadSpeed}
+              <div className="upload-progress-container animate-in">
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px", alignItems: "flex-end" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <span style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", color: "var(--accent-primary)" }}>
+                      Streaming to Nebula
+                    </span>
+                    <span style={{ fontSize: "14px", fontWeight: 600 }}>
+                      {uploadSpeed} <span style={{ color: "var(--text-dim)", fontWeight: 400 }}>available bandwidth</span>
                     </span>
                   </div>
-                  <span style={{ color: "var(--accent)", fontWeight: 600 }}>{progress.toFixed(1)}%</span>
+                  <div style={{ textAlign: "right" }}>
+                    <span style={{ fontSize: "24px", fontWeight: 800, color: "var(--text-primary)" }}>{progress.toFixed(0)}%</span>
+                  </div>
                 </div>
-                <div className="progress-bar-bg">
+                <div className="progress-bar-bg" style={{ height: "12px" }}>
                   <div className="progress-bar-fill" style={{ width: `${progress}%` }}></div>
                 </div>
               </div>
@@ -265,18 +330,23 @@ export default function UploadPage() {
             {error && (
               <div style={{ 
                 marginTop: "24px", 
-                padding: "16px", 
-                background: "rgba(239, 68, 68, 0.1)", 
+                padding: "20px", 
+                background: "rgba(251, 113, 133, 0.05)", 
                 border: "1px solid var(--error)",
                 borderRadius: "var(--rounded-md)",
                 color: "var(--error)",
                 display: "flex",
                 alignItems: "center",
-                gap: "12px",
+                gap: "16px",
                 textAlign: "left"
               }}>
-                <AlertCircle size={20} />
-                <span>{error}</span>
+                <div style={{ background: "rgba(251, 113, 133, 0.1)", padding: "10px", borderRadius: "50%" }}>
+                  <AlertCircle size={24} />
+                </div>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: "14px", marginBottom: "2px" }}>Transmission Error</div>
+                  <div style={{ fontSize: "13px", opacity: 0.8 }}>{error}</div>
+                </div>
               </div>
             )}
           </>

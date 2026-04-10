@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Play, Layers, MoreVertical, ListMusic, PlayCircle } from "lucide-react";
+import { Play, Layers, MoreVertical, ListMusic, PlayCircle, UploadCloud } from "lucide-react";
 
 type VideoAsset = {
   id: string;
@@ -71,11 +71,73 @@ export default function Home() {
   const standaloneVideos = videos.filter(v => !playlistAssetIds.has(v.id));
 
   return (
-    <>
-      <div className="page-header">
+    <div className="animate-in">
+      <div className="hero-section">
+        <div className="hero-content">
+          <span className="hero-badge">{playlists.length > 0 ? "Featured Collection" : "Premium Experience"}</span>
+          {playlists.length > 0 ? (
+            <>
+              <h1 className="hero-title">
+                Watch <span className="aurora-text">{playlists[0].title}</span>
+              </h1>
+              <p className="hero-description">
+                Dive back into your latest cinematic experience. Seamlessly transition between segments with our high-fidelity player.
+              </p>
+              <div className="hero-actions">
+                <Link href={`/playlist/${playlists[0].id}`} className="btn-primary">
+                  <PlayCircle size={20} />
+                  Watch Latest
+                </Link>
+              </div>
+            </>
+          ) : (
+            <>
+              <h1 className="hero-title">Your Cinematic <br /><span className="aurora-text">Video Library</span></h1>
+              <p className="hero-description">
+                Experience high-performance, seamless video playback powered by Mux. 
+                Manage your playlists and standalone assets with an elegant, modern interface.
+              </p>
+              <div className="hero-actions">
+                <Link href="/upload" className="btn-primary">
+                  <UploadCloud size={20} />
+                  Start Uploading
+                </Link>
+              </div>
+            </>
+          )}
+        </div>
+        <div className="hero-visual">
+          {playlists.length > 0 && playlists[0].videos.length > 0 ? (
+            <div className="hero-featured-visual glow-card">
+              {(() => {
+                const firstVideo = playlists[0].videos[0];
+                const matchingAsset = videos.find(v => v.id === firstVideo.muxAssetId);
+                const playbackId = matchingAsset?.playback_ids?.[0]?.id;
+                
+                const thumbUrl = playbackId 
+                  ? `https://image.mux.com/${playbackId}/thumbnail.jpg?width=1000&time=1`
+                  : "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1000&q=80";
+
+                return (
+                  <img 
+                    src={thumbUrl} 
+                    alt="Featured Playlist" 
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'var(--rounded-lg)' }}
+                  />
+                );
+              })()}
+              <div className="hero-visual-overlay" />
+            </div>
+          ) : (
+            <div className="aurora-sphere"></div>
+          )}
+        </div>
+      </div>
+
+      <div className="page-header library-header">
         <div>
-          <h1 className="page-title">Your Library</h1>
-          <p style={{ color: "var(--text-secondary)" }}>Manage your playlists and standalone videos.</p>
+          <h2 className="section-title">Library Overview</h2>
+          <p className="section-subtitle">Playlists and Standalone Videos.</p>
         </div>
       </div>
 
@@ -146,11 +208,11 @@ export default function Home() {
             Standalone Videos
           </h2>
           <div className="video-grid">
-            {standaloneVideos.map((asset) => {
+            {standaloneVideos.map((asset, i) => {
               const playbackId = asset.playback_ids?.[0]?.id;
 
               // Check if user has watch progress
-              const progressKey = `ekaki-progress:${playbackId}`;
+              const progressKey = `homies-progress:${playbackId}`;
               let hasProgress = false;
               try {
                 const raw = typeof window !== "undefined" ? localStorage.getItem(progressKey) : null;
@@ -165,8 +227,8 @@ export default function Home() {
               const href = asset.status === "ready" && playbackId ? `/player/${playbackId}` : "#";
 
               return (
-                <Link key={asset.id} href={href}>
-                  <div className="video-card glass-panel" style={{ opacity: asset.status === "ready" ? 1 : 0.7 }}>
+                <Link key={asset.id} href={href} className="animate-in" style={{ animationDelay: `${i * 0.05}s` }}>
+                  <div className="video-card glow-card" style={{ opacity: asset.status === "ready" ? 1 : 0.7 }}>
                     <div style={{ position: "relative" }}>
                       {playbackId ? (
                         <HoverProgressThumbnail 
@@ -191,7 +253,7 @@ export default function Home() {
                     </div>
                     
                     <div className="video-info">
-                      <div className="video-title">Video — {new Date(Number(asset.created_at) * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+                      <div className="video-title">{new Date(Number(asset.created_at) * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</div>
                       <div className="video-meta">
                         {hasProgress ? "Continue watching" : (asset.status === "ready" ? "Ready to play" : asset.status)}
                       </div>
@@ -216,7 +278,7 @@ export default function Home() {
           </Link>
         </div>
       )}
-    </>
+    </div>
   );
 }
 
@@ -239,7 +301,7 @@ function HoverProgressThumbnail({
 
   useEffect(() => {
     try {
-      const key = `ekaki-progress:${playbackIds.join(",")}`;
+      const key = `homies-progress:${playbackIds.join(",")}`;
       const raw = localStorage.getItem(key);
       if (raw) {
         const data = JSON.parse(raw);
@@ -290,11 +352,13 @@ function HoverProgressThumbnail({
         className="video-thumbnail" 
       />
       
-      {/* "Continue watching" overlay when hovered on a partially watched video */}
-      {savedProgress && isHovered && (
-        <div className="thumbnail-continue-badge">
-          <Play size={12} fill="white" />
-          Continue · {formatDuration(savedProgress.totalWatchedTime)}
+      {/* Cinematic Resume Badge Overlay */}
+      {savedProgress && (
+        <div className={`thumbnail-continue-badge ${isHovered ? 'hovered' : ''}`}>
+          <div className="continue-badge-icon">
+            <Play size={10} fill="currentColor" />
+          </div>
+          <span>Resume · {formatDuration(savedProgress.totalWatchedTime)}</span>
         </div>
       )}
 
@@ -333,7 +397,7 @@ function PlaylistCard({ playlist, videos }: { playlist: Playlist, videos: VideoA
   const totalDuration = partDurations.reduce((sum, d) => sum + d, 0);
 
   // Check if user has watch progress
-  const progressKey = `ekaki-progress:${playbackIds.join(",")}`;
+  const progressKey = `homies-progress:${playbackIds.join(",")}`;
   let hasProgress = false;
   try {
     const raw = typeof window !== "undefined" ? localStorage.getItem(progressKey) : null;
@@ -382,9 +446,9 @@ function PlaylistCard({ playlist, videos }: { playlist: Playlist, videos: VideoA
   };
 
   return (
-    <div className="video-card-container" style={{ position: "relative" }}>
+    <div className="video-card-container animate-in" style={{ position: "relative" }}>
       <Link href={mainHref}>
-        <div className="video-card glass-panel" style={{ border: "1px solid var(--accent-glow)" }}>
+        <div className="video-card glow-card" style={{ border: "1px solid var(--border-bold)" }}>
           <div style={{ position: "relative" }}>
             {thumbPlaybackId ? (
               <HoverProgressThumbnail 
@@ -394,21 +458,15 @@ function PlaylistCard({ playlist, videos }: { playlist: Playlist, videos: VideoA
                 partDurations={partDurations}
               />
             ) : (
-              <div className="video-thumbnail" style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(139, 92, 246, 0.1)" }}>
-                <Layers size={40} color="var(--accent)" />
+              <div className="video-thumbnail" style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(192, 132, 252, 0.05)" }}>
+                <Layers size={40} color="var(--accent-primary)" />
               </div>
-            )}
-            <div className="status-badge" style={{ background: "rgba(139, 92, 246, 0.8)", border: "none" }}>
-              <span style={{ color: "white" }}>{playlist.videos.length} PARTS</span>
-            </div>
-            {totalDuration > 0 && (
-              <div className="duration-badge">{formatDuration(totalDuration)}</div>
             )}
           </div>
           <div className="video-info">
-            <div className="video-title" style={{ fontSize: "18px", fontWeight: 600 }}>{playlist.title}</div>
+            <div className="video-title">{playlist.title}</div>
             <div className="video-meta">
-              {hasProgress ? "Continue watching" : `Created ${new Date(playlist.createdAt).toLocaleDateString()}`}
+              {`Collection · ${playlist.videos.length} parts`}
             </div>
           </div>
         </div>

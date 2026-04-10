@@ -11,7 +11,7 @@ type ProgressData = {
 };
 
 function getStorageKey(ids: string[]): string {
-  return `ekaki-progress:${ids.join(",")}`;
+  return `homies-progress:${ids.join(",")}`;
 }
 
 function loadProgress(ids: string[]): ProgressData | null {
@@ -318,8 +318,7 @@ const SeamlessPlaylist = forwardRef<SeamlessPlaylistRef, { ids: string[]; onPart
       <div 
         style={{ position: "relative", width: "100%", aspectRatio: "16/9", background: "#000", borderRadius: "12px", overflow: "visible" }}
         onMouseMove={triggerControls}
-        onClick={triggerControls}
-        onTouchStart={triggerControls}
+        onPointerDown={triggerControls}
       >
         {/* Ambilight Canvas */}
         <canvas 
@@ -327,24 +326,23 @@ const SeamlessPlaylist = forwardRef<SeamlessPlaylistRef, { ids: string[]; onPart
           width={64} height={36}
           style={{
             position: "absolute", inset: 0, width: "100%", height: "100%",
-            filter: "blur(60px) saturate(200%) opacity(0.6)",
-            transform: "scale(1.1) translateY(10%)", zIndex: -1, pointerEvents: "none"
+            filter: "blur(80px) saturate(180%) opacity(0.4)",
+            transform: "scale(1.15) translateY(5%)", zIndex: -1, pointerEvents: "none"
           }}
         />
         <MuxPlayer
           ref={playerRef}
           playbackId={ids[0]}
           streamType="on-demand"
-          primaryColor="#8b5cf6"
+          primaryColor="#c084fc"
           autoPlay
           onLoadedData={handleLoadedData}
           onEnded={() => clearProgress(ids)}
+          metadata={{
+            video_id: ids[0],
+            video_title: "Featured Content",
+          }}
           style={{ width: "100%", aspectRatio: "16/9", display: "block" }}
-        />
-        <PlayerControlsOverlay 
-          visible={showOverlayControls}
-          onBack={seekBackward}
-          onForward={seekForward}
         />
         <KeyboardShortcutHelp show={showShortcuts} onClose={() => setShowShortcuts(false)} />
         {showResumeBanner && (
@@ -378,8 +376,7 @@ const SeamlessPlaylist = forwardRef<SeamlessPlaylistRef, { ids: string[]; onPart
     <div 
       style={{ position: "relative", width: "100%", aspectRatio: "16/9", background: "#000", borderRadius: "12px", overflow: "visible" }}
       onMouseMove={triggerControls}
-      onClick={triggerControls}
-      onTouchStart={triggerControls}
+      onPointerDown={triggerControls}
     >
       {/* Ambilight Canvas */}
       <canvas 
@@ -387,8 +384,8 @@ const SeamlessPlaylist = forwardRef<SeamlessPlaylistRef, { ids: string[]; onPart
         width={64} height={36}
         style={{
           position: "absolute", inset: 0, width: "100%", height: "100%",
-          filter: "blur(60px) saturate(200%) opacity(0.6)",
-          transform: "scale(1.1) translateY(10%)", zIndex: -1, pointerEvents: "none"
+          filter: "blur(80px) saturate(180%) opacity(0.4)",
+          transform: "scale(1.15) translateY(5%)", zIndex: -1, pointerEvents: "none"
         }}
       />
       
@@ -398,10 +395,14 @@ const SeamlessPlaylist = forwardRef<SeamlessPlaylistRef, { ids: string[]; onPart
           ref={pingPlayerRef}
           playbackId={pingId}
           streamType="on-demand"
-          primaryColor="#8b5cf6"
+          primaryColor="#c084fc"
           autoPlay={activeIndex % 2 === 0}
           onLoadedData={activeIndex % 2 === 0 ? handleLoadedData : undefined}
           onEnded={activeIndex % 2 === 0 ? handleEnded : undefined}
+          metadata={{
+            video_id: pingId,
+            video_title: `Segment ${activeIndex % 2 === 0 ? activeIndex + 1 : activeIndex + 2}`,
+          }}
           style={{
             position: "absolute",
             top: 0,
@@ -411,6 +412,7 @@ const SeamlessPlaylist = forwardRef<SeamlessPlaylistRef, { ids: string[]; onPart
             opacity: activeIndex % 2 === 0 ? 1 : 0,
             pointerEvents: activeIndex % 2 === 0 ? "auto" : "none",
             zIndex: activeIndex % 2 === 0 ? 10 : 1,
+            display: "block"
           }}
         />
       )}
@@ -421,10 +423,14 @@ const SeamlessPlaylist = forwardRef<SeamlessPlaylistRef, { ids: string[]; onPart
           ref={pongPlayerRef}
           playbackId={pongId}
           streamType="on-demand"
-          primaryColor="#8b5cf6"
+          primaryColor="#c084fc"
           autoPlay={activeIndex % 2 !== 0}
           onLoadedData={activeIndex % 2 !== 0 ? handleLoadedData : undefined}
           onEnded={activeIndex % 2 !== 0 ? handleEnded : undefined}
+          metadata={{
+            video_id: pongId,
+            video_title: `Segment ${activeIndex % 2 !== 0 ? activeIndex + 1 : activeIndex + 2}`,
+          }}
           style={{
             position: "absolute",
             top: 0,
@@ -434,15 +440,10 @@ const SeamlessPlaylist = forwardRef<SeamlessPlaylistRef, { ids: string[]; onPart
             opacity: activeIndex % 2 !== 0 ? 1 : 0,
             pointerEvents: activeIndex % 2 !== 0 ? "auto" : "none",
             zIndex: activeIndex % 2 !== 0 ? 10 : 1,
+            display: "block"
           }}
         />
       )}
-
-      <PlayerControlsOverlay 
-        visible={showOverlayControls}
-        onBack={seekBackward}
-        onForward={seekForward}
-      />
       
       {/* Part indicator overlay */}
       <div className="player-part-badge">
@@ -467,33 +468,6 @@ const SeamlessPlaylist = forwardRef<SeamlessPlaylistRef, { ids: string[]; onPart
 
 export default SeamlessPlaylist;
 
-function PlayerControlsOverlay({ 
-  visible, 
-  onBack, 
-  onForward 
-}: { 
-  visible: boolean; 
-  onBack: (e: React.MouseEvent) => void;
-  onForward: (e: React.MouseEvent) => void;
-}) {
-  return (
-    <div className={`player-controls-overlay ${visible ? 'visible' : ''}`}>
-      <div className="player-controls-center">
-        <button className="player-control-btn side" onClick={onBack}>
-          <RotateCcw size={28} />
-          <span className="control-label">10</span>
-        </button>
-        
-        <div className="player-controls-spacer" />
-        
-        <button className="player-control-btn side" onClick={onForward}>
-          <RotateCw size={28} />
-          <span className="control-label">10</span>
-        </button>
-      </div>
-    </div>
-  );
-}
 
 function formatTime(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -517,21 +491,23 @@ function ResumeBanner({
   onRestart: () => void; 
 }) {
   return (
-    <div className="resume-banner">
+    <div className="resume-banner glass-premium animate-in">
       <div className="resume-banner-text">
-        <span className="resume-banner-icon">▶</span>
+        <div className="brand-icon-wrapper" style={{ width: "24px", height: "24px", borderRadius: "50%", background: "var(--accent-aurora)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Play size={12} fill="currentColor" color="white" />
+        </div>
         <span>
-          Resumed at {formatTime(time)}
+          Resumed at <span className="aurora-text" style={{ fontWeight: 700 }}>{formatTime(time)}</span>
           {partIndex !== undefined && totalParts && totalParts > 1 && (
-            <span style={{ opacity: 0.7 }}> · Part {partIndex + 1}</span>
+            <span style={{ color: "var(--text-dim)", marginLeft: "8px" }}>· Segment {partIndex + 1}</span>
           )}
         </span>
       </div>
       <div className="resume-banner-actions">
         <button className="resume-banner-btn restart" onClick={onRestart}>
-          Start Over
+          Restart Segment
         </button>
-        <button className="resume-banner-btn dismiss" onClick={onDismiss}>
+        <button className="resume-banner-btn dismiss" onClick={onDismiss} aria-label="Dismiss">
           ✕
         </button>
       </div>
@@ -544,23 +520,15 @@ function KeyboardShortcutHelp({ show, onClose }: { show: boolean, onClose: () =>
   if (!show) return null;
   return (
     <div className="shortcuts-overlay" onClick={onClose}>
-      <div className="shortcuts-modal" onClick={e => e.stopPropagation()}>
-        <div className="shortcuts-header">
-          <h3>Keyboard Shortcuts</h3>
-          <button onClick={onClose} aria-label="Close">✕</button>
+      <div className="shortcuts-modal glass-premium" onClick={e => e.stopPropagation()}>
+        <div className="shortcuts-header" style={{ marginBottom: "24px" }}>
+          <h3 style={{ fontSize: "20px", fontWeight: 700 }}>Cinematic Shortcuts</h3>
+          <button onClick={onClose} aria-label="Close" style={{ background: "rgba(255,255,255,0.05)", borderRadius: "50%", padding: "8px" }}>✕</button>
         </div>
         <div className="shortcuts-grid">
           <div className="shortcut-item">
             <span className="shortcut-keys"><kbd>Space</kbd> or <kbd>K</kbd></span>
             <span className="shortcut-desc">Play / Pause</span>
-          </div>
-          <div className="shortcut-item">
-            <span className="shortcut-keys"><kbd>←</kbd> or <kbd>J</kbd></span>
-            <span className="shortcut-desc">Skip backward 10s</span>
-          </div>
-          <div className="shortcut-item">
-            <span className="shortcut-keys"><kbd>→</kbd> or <kbd>L</kbd></span>
-            <span className="shortcut-desc">Skip forward 10s</span>
           </div>
           <div className="shortcut-item">
             <span className="shortcut-keys"><kbd>F</kbd></span>
